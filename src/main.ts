@@ -432,6 +432,13 @@ function createOutpostModule(
   shellMaterial.specularColor = new BABYLON.Color3(0.09, 0.1, 0.12);
   shellMaterial.specularPower = 48;
 
+  const trimMaterial = createMaterial(
+    scene,
+    `${name}_trimMat`,
+    new BABYLON.Color3(0.42, 0.45, 0.48),
+    new BABYLON.Color3(0.01, 0.012, 0.015)
+  );
+
   const body = BABYLON.MeshBuilder.CreateBox(
     `${name}_body`,
     { width, depth, height },
@@ -444,7 +451,7 @@ function createOutpostModule(
 
   const roof = BABYLON.MeshBuilder.CreateCylinder(
     `${name}_roof`,
-    { diameter: depth + 0.2, height: width + 0.14, tessellation: 20 },
+    { diameter: depth + 0.2, height: width + 0.14, tessellation: 24 },
     scene
   );
   roof.position = position.add(new BABYLON.Vector3(0, height + 0.22, 0));
@@ -452,12 +459,7 @@ function createOutpostModule(
   roof.rotation.y = yaw;
   roof.scaling = new BABYLON.Vector3(1, 0.24, 1);
   roof.isPickable = false;
-  roof.material = createMaterial(
-    scene,
-    `${name}_roofMat`,
-    new BABYLON.Color3(0.42, 0.45, 0.49),
-    new BABYLON.Color3(0.018, 0.02, 0.025)
-  );
+  roof.material = trimMaterial;
 
   const foundation = BABYLON.MeshBuilder.CreateBox(
     `${name}_foundation`,
@@ -474,31 +476,57 @@ function createOutpostModule(
     new BABYLON.Color3(0.008, 0.01, 0.014)
   );
 
-  const strip = BABYLON.MeshBuilder.CreateBox(
-    `${name}_strip`,
-    { width: width * 0.24, depth: 0.05, height: height * 0.42 },
+  const doorway = BABYLON.MeshBuilder.CreateBox(
+    `${name}_doorway`,
+    { width: width * 0.26, depth: 0.08, height: height * 0.62 },
     scene
   );
-  strip.position = position.add(new BABYLON.Vector3(0, height * 0.44, -depth * 0.5 + 0.04));
-  strip.rotation.y = yaw;
-  strip.isPickable = false;
-  strip.material = createMaterial(
+  doorway.position = position.add(new BABYLON.Vector3(0, height * 0.34, -depth * 0.5 + 0.05));
+  doorway.rotation.y = yaw;
+  doorway.isPickable = false;
+  doorway.material = createMaterial(
     scene,
-    `${name}_stripMat`,
-    new BABYLON.Color3(0.08, 0.12, 0.14),
-    new BABYLON.Color3(0.08, 0.12, 0.12)
+    `${name}_doorwayMat`,
+    new BABYLON.Color3(0.09, 0.12, 0.14),
+    new BABYLON.Color3(0.04, 0.06, 0.06)
   );
 
   for (const side of [-1, 1]) {
-    const leg = BABYLON.MeshBuilder.CreateBox(
-      `${name}_leg_${side}`,
-      { width: 0.14, depth: 0.14, height: 0.7 },
+    const sidePanel = BABYLON.MeshBuilder.CreateBox(
+      `${name}_sidePanel_${side}`,
+      { width: 0.14, depth: depth * 0.88, height: height * 0.78 },
       scene
     );
-    leg.position = position.add(new BABYLON.Vector3((width * 0.5 - 0.18) * side, 0.35, depth * 0.34));
-    leg.rotation.y = yaw;
-    leg.isPickable = false;
-    leg.material = shellMaterial;
+    sidePanel.position = position.add(new BABYLON.Vector3((width * 0.5 - 0.09) * side, height * 0.43, 0));
+    sidePanel.rotation.y = yaw;
+    sidePanel.isPickable = false;
+    sidePanel.material = trimMaterial;
+
+    const canister = BABYLON.MeshBuilder.CreateCylinder(
+      `${name}_canister_${side}`,
+      { diameter: 0.32, height: height * 0.74, tessellation: 18 },
+      scene
+    );
+    canister.position = position.add(new BABYLON.Vector3((width * 0.5 + 0.26) * side, height * 0.38, depth * 0.1));
+    canister.rotation.y = yaw;
+    canister.isPickable = false;
+    canister.material = createMaterial(
+      scene,
+      `${name}_canisterMat_${side}`,
+      new BABYLON.Color3(0.22, 0.24, 0.27),
+      new BABYLON.Color3(0.01, 0.012, 0.015)
+    );
+
+    const pipe = BABYLON.MeshBuilder.CreateCylinder(
+      `${name}_pipe_${side}`,
+      { diameter: 0.08, height: depth * 0.64, tessellation: 10 },
+      scene
+    );
+    pipe.position = position.add(new BABYLON.Vector3((width * 0.32) * side, height * 0.72, 0));
+    pipe.rotation.z = Math.PI / 2;
+    pipe.rotation.y = yaw;
+    pipe.isPickable = false;
+    pipe.material = trimMaterial;
   }
 
   const vent = BABYLON.MeshBuilder.CreateBox(
@@ -509,12 +537,16 @@ function createOutpostModule(
   vent.position = position.add(new BABYLON.Vector3(0, height * 0.58, depth * 0.5 + 0.02));
   vent.rotation.y = yaw;
   vent.isPickable = false;
-  vent.material = createMaterial(
-    scene,
-    `${name}_ventMat`,
-    new BABYLON.Color3(0.18, 0.2, 0.22),
-    new BABYLON.Color3(0.01, 0.012, 0.015)
+  vent.material = trimMaterial;
+
+  const topAntenna = BABYLON.MeshBuilder.CreateCylinder(
+    `${name}_antenna`,
+    { diameter: 0.06, height: 0.9, tessellation: 8 },
+    scene
   );
+  topAntenna.position = position.add(new BABYLON.Vector3(width * 0.22, height + 0.7, 0));
+  topAntenna.isPickable = false;
+  topAntenna.material = trimMaterial;
 }
 
 function createSlimeBlob(
@@ -633,6 +665,95 @@ function createSlimeInfestation(
   }
 }
 
+function createVideoTerminal(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  yaw: number,
+  color: BABYLON.Color3
+) {
+  const frameMat = createMaterial(
+    scene,
+    `${name}_frameMat`,
+    new BABYLON.Color3(0.18, 0.2, 0.23),
+    new BABYLON.Color3(0.008, 0.01, 0.014)
+  );
+  const screenMat = createMaterial(
+    scene,
+    `${name}_screenMat`,
+    new BABYLON.Color3(0.07, 0.11, 0.12),
+    color.scale(0.22)
+  );
+
+  const base = BABYLON.MeshBuilder.CreateBox(
+    `${name}_base`,
+    { width: 2.2, height: 0.16, depth: 1.1 },
+    scene
+  );
+  base.position = position.add(new BABYLON.Vector3(0, 0.08, 0));
+  base.rotation.y = yaw;
+  base.isPickable = false;
+  base.material = frameMat;
+
+  const mast = BABYLON.MeshBuilder.CreateBox(
+    `${name}_mast`,
+    { width: 0.22, height: 1.7, depth: 0.18 },
+    scene
+  );
+  mast.position = position.add(new BABYLON.Vector3(0, 0.95, 0.18));
+  mast.rotation.y = yaw;
+  mast.isPickable = false;
+  mast.material = frameMat;
+
+  const screen = BABYLON.MeshBuilder.CreateBox(
+    `${name}_screen`,
+    { width: 2.1, height: 1.2, depth: 0.08 },
+    scene
+  );
+  screen.position = position.add(new BABYLON.Vector3(0, 1.72, -0.06));
+  screen.rotation.y = yaw;
+  screen.rotation.x = -0.06;
+  screen.isPickable = false;
+  screen.material = screenMat;
+
+  const hood = BABYLON.MeshBuilder.CreateBox(
+    `${name}_hood`,
+    { width: 2.28, height: 0.14, depth: 0.42 },
+    scene
+  );
+  hood.position = position.add(new BABYLON.Vector3(0, 2.34, -0.14));
+  hood.rotation.y = yaw;
+  hood.isPickable = false;
+  hood.material = frameMat;
+
+  const console = BABYLON.MeshBuilder.CreateBox(
+    `${name}_console`,
+    { width: 1.5, height: 0.16, depth: 0.72 },
+    scene
+  );
+  console.position = position.add(new BABYLON.Vector3(0, 0.92, -0.42));
+  console.rotation.y = yaw;
+  console.rotation.x = -0.32;
+  console.isPickable = false;
+  console.material = frameMat;
+
+  const controlStrip = BABYLON.MeshBuilder.CreateBox(
+    `${name}_controls`,
+    { width: 1.16, height: 0.04, depth: 0.14 },
+    scene
+  );
+  controlStrip.position = position.add(new BABYLON.Vector3(0, 0.98, -0.64));
+  controlStrip.rotation.y = yaw;
+  controlStrip.rotation.x = -0.32;
+  controlStrip.isPickable = false;
+  controlStrip.material = createMaterial(
+    scene,
+    `${name}_controlsMat`,
+    new BABYLON.Color3(0.12, 0.16, 0.16),
+    color.scale(0.18)
+  );
+}
+
 function createSciFiPod(
   scene: BABYLON.Scene,
   name: string,
@@ -640,39 +761,47 @@ function createSciFiPod(
   yaw: number,
   color: BABYLON.Color3
 ) {
-  const body = BABYLON.MeshBuilder.CreateCylinder(
-    `${name}_body`,
-    { diameter: 1.15, height: 2.8, tessellation: 24 },
-    scene
-  );
-  body.position = position.add(new BABYLON.Vector3(0, 1.4, 0));
-  body.rotation.y = yaw;
-  body.isPickable = false;
-  body.material = createMaterial(
+  const shellMat = createMaterial(
     scene,
     `${name}_bodyMat`,
-    new BABYLON.Color3(0.62, 0.67, 0.74),
-    color.scale(0.16)
+    new BABYLON.Color3(0.46, 0.5, 0.55),
+    color.scale(0.04)
   );
+  const trimMat = createMaterial(
+    scene,
+    `${name}_trimMat`,
+    new BABYLON.Color3(0.25, 0.28, 0.31),
+    new BABYLON.Color3(0.008, 0.01, 0.014)
+  );
+
+  const body = BABYLON.MeshBuilder.CreateCylinder(
+    `${name}_body`,
+    { diameter: 1.2, height: 2.9, tessellation: 28 },
+    scene
+  );
+  body.position = position.add(new BABYLON.Vector3(0, 1.45, 0));
+  body.rotation.y = yaw;
+  body.isPickable = false;
+  body.material = shellMat;
 
   const cap = BABYLON.MeshBuilder.CreateSphere(
     `${name}_cap`,
-    { diameter: 1.18, segments: 16 },
+    { diameter: 1.24, segments: 18 },
     scene
   );
-  cap.position = position.add(new BABYLON.Vector3(0, 2.75, 0));
-  cap.scaling = new BABYLON.Vector3(1, 0.55, 1);
+  cap.position = position.add(new BABYLON.Vector3(0, 2.84, 0));
+  cap.scaling = new BABYLON.Vector3(1, 0.58, 1);
   cap.isPickable = false;
   cap.material = createMaterial(
     scene,
     `${name}_capMat`,
-    new BABYLON.Color3(0.82, 0.88, 0.96),
-    color.scale(0.24)
+    new BABYLON.Color3(0.68, 0.72, 0.78),
+    color.scale(0.08)
   );
 
   const core = BABYLON.MeshBuilder.CreateCylinder(
     `${name}_core`,
-    { diameter: 0.28, height: 2.1, tessellation: 16 },
+    { diameter: 0.26, height: 2.15, tessellation: 16 },
     scene
   );
   core.position = position.add(new BABYLON.Vector3(0, 1.45, 0));
@@ -681,10 +810,33 @@ function createSciFiPod(
   core.material = createMaterial(
     scene,
     `${name}_coreMat`,
-    color.scale(0.16),
-    color.scale(1.12),
-    0.82
+    color.scale(0.08),
+    color.scale(0.42),
+    0.46
   );
+
+  for (const offset of [-0.62, 0.62]) {
+    const brace = BABYLON.MeshBuilder.CreateBox(
+      `${name}_brace_${offset}`,
+      { width: 0.12, height: 2.2, depth: 0.12 },
+      scene
+    );
+    brace.position = position.add(new BABYLON.Vector3(offset, 1.02, 0));
+    brace.rotation.y = yaw + offset * 0.08;
+    brace.rotation.z = -offset * 0.22;
+    brace.isPickable = false;
+    brace.material = trimMat;
+  }
+
+  const baseRing = BABYLON.MeshBuilder.CreateTorus(
+    `${name}_baseRing`,
+    { diameter: 1.6, thickness: 0.1, tessellation: 42 },
+    scene
+  );
+  baseRing.position = position.add(new BABYLON.Vector3(0, 0.18, 0));
+  baseRing.rotation.x = Math.PI / 2;
+  baseRing.isPickable = false;
+  baseRing.material = trimMat;
 
   const ring = BABYLON.MeshBuilder.CreateTorus(
     `${name}_ring`,
@@ -699,8 +851,8 @@ function createSciFiPod(
   ring.material = createMaterial(
     scene,
     `${name}_ringMat`,
-    new BABYLON.Color3(0.55, 0.63, 0.75),
-    color.scale(0.72)
+    new BABYLON.Color3(0.4, 0.46, 0.53),
+    color.scale(0.18)
   );
 }
 function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
@@ -715,6 +867,7 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
 
     createOutpostModule(scene, `${project.id}_outpostMain`, rear.add(right.scale(-0.4)).add(new BABYLON.Vector3(0, 0, 3.8)), yaw + 0.03, 4.4, 2.8, 1.9);
     createOutpostModule(scene, `${project.id}_outpostSide`, rear.add(right.scale(-4.9)).add(new BABYLON.Vector3(0, 0, 2.9)), yaw + 0.14, 2.4, 1.9, 1.45);
+    createVideoTerminal(scene, `${project.id}_videoTerminal`, rear.add(right.scale(4.9)).add(new BABYLON.Vector3(0, 0, 1.9)), yaw - 0.18, project.color);
 
     const servicePad = BABYLON.MeshBuilder.CreateBox(
       `${project.id}_servicePad`,
@@ -1104,25 +1257,25 @@ function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
   const baseMaterial = createMaterial(
     scene,
     `${project.id}_baseMat`,
-    isSlime ? new BABYLON.Color3(0.15, 0.17, 0.2) : new BABYLON.Color3(0.07, 0.08, 0.12),
-    isSlime ? new BABYLON.Color3(0.01, 0.015, 0.018) : project.color.scale(0.12)
+    isSlime ? new BABYLON.Color3(0.14, 0.16, 0.19) : new BABYLON.Color3(0.07, 0.08, 0.12),
+    isSlime ? new BABYLON.Color3(0.008, 0.01, 0.012) : project.color.scale(0.12)
   );
 
   const base = BABYLON.MeshBuilder.CreateCylinder(
     `${project.id}_base`,
-    isSlime ? { diameter: 2.2, height: 0.16, tessellation: 40 } : { diameter: 2.8, height: 0.26, tessellation: 48 },
+    isSlime ? { diameter: 2.5, height: 0.18, tessellation: 48 } : { diameter: 2.8, height: 0.26, tessellation: 48 },
     scene
   );
   base.parent = root;
-  base.position.y = isSlime ? 0.08 : 0.14;
+  base.position.y = isSlime ? 0.09 : 0.14;
   base.checkCollisions = true;
   base.material = baseMaterial;
 
   const pedestal = isSlime
-    ? BABYLON.MeshBuilder.CreateBox(`${project.id}_pedestal`, { width: 1.4, height: 0.52, depth: 1.15 }, scene)
+    ? BABYLON.MeshBuilder.CreateBox(`${project.id}_pedestal`, { width: 1.6, height: 0.54, depth: 1.22 }, scene)
     : BABYLON.MeshBuilder.CreateCylinder(`${project.id}_pedestal`, { diameter: 1.35, height: 1.15, tessellation: 32 }, scene);
   pedestal.parent = root;
-  pedestal.position.y = isSlime ? 0.34 : 0.72;
+  pedestal.position.y = isSlime ? 0.36 : 0.72;
   pedestal.checkCollisions = true;
   pedestal.material = createMaterial(
     scene,
@@ -1134,18 +1287,18 @@ function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
   const displayMaterial = createMaterial(
     scene,
     `${project.id}_displayMat`,
-    isSlime ? new BABYLON.Color3(0.12, 0.16, 0.17) : project.color.scale(0.26),
-    isSlime ? new BABYLON.Color3(0.04, 0.08, 0.08) : project.color.scale(0.5)
+    isSlime ? new BABYLON.Color3(0.08, 0.12, 0.12) : project.color.scale(0.26),
+    isSlime ? new BABYLON.Color3(0.08, 0.16, 0.14) : project.color.scale(0.5)
   );
   const display = BABYLON.MeshBuilder.CreateBox(
     `${project.id}_display`,
-    isSlime ? { width: 1.65, height: 0.85, depth: 0.14 } : { width: 1.55, height: 0.95, depth: 0.16 },
+    isSlime ? { width: 1.74, height: 0.94, depth: 0.08 } : { width: 1.55, height: 0.95, depth: 0.16 },
     scene
   );
   display.parent = root;
-  display.position.y = isSlime ? 1.02 : 1.62;
-  display.position.z = isSlime ? -0.18 : -0.58;
-  display.rotation.x = isSlime ? -0.24 : 0;
+  display.position.y = isSlime ? 1.12 : 1.62;
+  display.position.z = isSlime ? -0.28 : -0.58;
+  display.rotation.x = isSlime ? -0.3 : 0;
   display.checkCollisions = true;
   display.material = displayMaterial;
 
@@ -1153,16 +1306,16 @@ function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
     scene,
     `${project.id}_orbMat`,
     isSlime ? new BABYLON.Color3(0.58, 0.72, 0.68) : new BABYLON.Color3(0.82, 0.9, 1.0),
-    isSlime ? project.color.scale(0.38) : project.color.scale(1.25)
+    isSlime ? project.color.scale(0.28) : project.color.scale(1.25)
   );
   const orb = BABYLON.MeshBuilder.CreateSphere(
     `${project.id}_orb`,
-    { diameter: isSlime ? 0.34 : 0.55, segments: 24 },
+    { diameter: isSlime ? 0.28 : 0.55, segments: 24 },
     scene
   );
   orb.parent = root;
-  orb.position.y = isSlime ? 1.42 : 2.2;
-  orb.position.z = isSlime ? -0.08 : 0;
+  orb.position.y = isSlime ? 1.56 : 2.2;
+  orb.position.z = isSlime ? -0.12 : 0;
   orb.material = orbMaterial;
   orb.isPickable = true;
 
@@ -1170,34 +1323,34 @@ function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
     scene,
     `${project.id}_ringMat`,
     isSlime ? new BABYLON.Color3(0.12, 0.16, 0.17) : new BABYLON.Color3(0.08, 0.1, 0.16),
-    isSlime ? project.color.scale(0.18) : project.color.scale(0.7)
+    isSlime ? project.color.scale(0.12) : project.color.scale(0.7)
   );
   const ring = BABYLON.MeshBuilder.CreateTorus(
     `${project.id}_ring`,
-    { diameter: isSlime ? 0.92 : 1.9, thickness: isSlime ? 0.04 : 0.06, tessellation: 64 },
+    { diameter: isSlime ? 0.84 : 1.9, thickness: isSlime ? 0.03 : 0.06, tessellation: 64 },
     scene
   );
   ring.parent = root;
-  ring.position.y = isSlime ? 1.12 : 1.62;
-  ring.position.z = isSlime ? -0.06 : 0;
+  ring.position.y = isSlime ? 1.28 : 1.62;
+  ring.position.z = isSlime ? -0.12 : 0;
   ring.rotation.x = Math.PI / 2;
   ring.material = ringMaterial;
 
   const haloMaterial = createMaterial(
     scene,
     `${project.id}_haloMat`,
-    isSlime ? project.color.scale(0.08) : project.color.scale(0.15),
-    isSlime ? project.color.scale(0.16) : project.color.scale(0.55),
-    isSlime ? 0.18 : 0.45
+    isSlime ? project.color.scale(0.05) : project.color.scale(0.15),
+    isSlime ? project.color.scale(0.1) : project.color.scale(0.55),
+    isSlime ? 0.12 : 0.45
   );
   const halo = BABYLON.MeshBuilder.CreateDisc(
     `${project.id}_halo`,
-    { radius: isSlime ? 1.05 : 1.45, tessellation: 48 },
+    { radius: isSlime ? 1.18 : 1.45, tessellation: 48 },
     scene
   );
   halo.parent = root;
   halo.rotation.x = Math.PI / 2;
-  halo.position.y = isSlime ? 0.09 : 0.16;
+  halo.position.y = isSlime ? 0.1 : 0.16;
   halo.material = haloMaterial;
   halo.isPickable = false;
 
@@ -1205,39 +1358,58 @@ function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
     scene,
     `${project.id}_beamMat`,
     isSlime ? new BABYLON.Color3(0.05, 0.08, 0.09) : project.color.scale(0.08),
-    isSlime ? project.color.scale(0.12) : project.color.scale(0.4),
-    isSlime ? 0.12 : 0.28
+    isSlime ? project.color.scale(0.08) : project.color.scale(0.4),
+    isSlime ? 0.1 : 0.28
   );
   const beam = BABYLON.MeshBuilder.CreateCylinder(
     `${project.id}_beam`,
-    isSlime ? { diameterTop: 0.08, diameterBottom: 0.16, height: 1.6, tessellation: 14 } : { diameterTop: 0.12, diameterBottom: 0.42, height: 3.1, tessellation: 16 },
+    isSlime ? { diameterTop: 0.05, diameterBottom: 0.12, height: 1.3, tessellation: 14 } : { diameterTop: 0.12, diameterBottom: 0.42, height: 3.1, tessellation: 16 },
     scene
   );
   beam.parent = root;
-  beam.position.y = isSlime ? 0.92 : 1.72;
+  beam.position.y = isSlime ? 0.88 : 1.72;
   beam.material = beamMaterial;
   beam.isPickable = false;
 
   if (isSlime) {
-    const terminalWingLeft = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_terminalWingLeft`,
-      { width: 0.18, height: 0.42, depth: 0.82 },
+    const sideStrutLeft = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_sideStrutLeft`,
+      { width: 0.14, height: 0.86, depth: 0.18 },
       scene
     );
-    terminalWingLeft.parent = root;
-    terminalWingLeft.position = new BABYLON.Vector3(-0.82, 0.72, -0.08);
-    terminalWingLeft.rotation.z = 0.2;
-    terminalWingLeft.material = baseMaterial;
+    sideStrutLeft.parent = root;
+    sideStrutLeft.position = new BABYLON.Vector3(-0.98, 0.72, 0.02);
+    sideStrutLeft.rotation.z = 0.24;
+    sideStrutLeft.material = baseMaterial;
 
-    const terminalWingRight = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_terminalWingRight`,
-      { width: 0.18, height: 0.42, depth: 0.82 },
+    const sideStrutRight = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_sideStrutRight`,
+      { width: 0.14, height: 0.86, depth: 0.18 },
       scene
     );
-    terminalWingRight.parent = root;
-    terminalWingRight.position = new BABYLON.Vector3(0.82, 0.72, -0.08);
-    terminalWingRight.rotation.z = -0.2;
-    terminalWingRight.material = baseMaterial;
+    sideStrutRight.parent = root;
+    sideStrutRight.position = new BABYLON.Vector3(0.98, 0.72, 0.02);
+    sideStrutRight.rotation.z = -0.24;
+    sideStrutRight.material = baseMaterial;
+
+    const hood = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_screenHood`,
+      { width: 1.9, height: 0.12, depth: 0.34 },
+      scene
+    );
+    hood.parent = root;
+    hood.position = new BABYLON.Vector3(0, 1.56, -0.28);
+    hood.material = baseMaterial;
+
+    const console = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_console`,
+      { width: 1.26, height: 0.14, depth: 0.62 },
+      scene
+    );
+    console.parent = root;
+    console.position = new BABYLON.Vector3(0, 0.84, -0.56);
+    console.rotation.x = -0.28;
+    console.material = baseMaterial;
   }
 
   [base, pedestal, display, orb, ring].forEach((mesh) => {
@@ -1707,6 +1879,7 @@ engine.runRenderLoop(() => {
 window.addEventListener("resize", () => {
   engine.resize();
 });
+
 
 
 
