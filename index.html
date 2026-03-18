@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Portfolio Museum</title>
+  </head>
+  <body>
+    <canvas id="renderCanvas"></canvas>
+
+    <div id="ui">
+      <header id="topbar">
+        <div class="brand-block">
+          <p class="eyebrow">Immersive Portfolio</p>
+          <h1>Cyrian Savary</h1>
+          <p class="intro-copy">
+            Un musee interactif dedie au gameplay, a la tech temps reel et a la
+            mise en scene des projets.
+          </p>
+        </div>
+
+        <div class="topbar-actions">
+          <div id="statusPill" class="status-pill">Clique dans la scene pour entrer en mode visite.</div>
+          <button id="closePanel" class="ghost-button hidden">Masquer la fiche</button>
+        </div>
+      </header>
+
+      <aside id="projectRail" aria-label="Navigation projets"></aside>
+
+      <section id="heroPanel">
+        <p class="eyebrow">Hall central</p>
+        <h2>Visite libre en vue FPS.</h2>
+        <p>
+          Clique dans la scene pour capturer la souris, deplace-toi en ZQSD ou
+          WASD, puis vise un stand et appuie sur E pour ouvrir sa fiche.
+        </p>
+      </section>
+
+      <section id="projectPanel" class="panel hidden" aria-live="polite">
+        <div class="panel-media">
+          <img id="projectHero" alt="" />
+          <div id="projectAccent" class="panel-accent"></div>
+        </div>
+
+        <div class="panel-video">
+          <div class="panel-video-copy">
+            <p class="eyebrow">Presentation video</p>
+            <strong id="projectVideoTitle">Gameplay capture</strong>
+            <span id="projectVideoNote">Emplacement reserve pour une video de presentation.</span>
+          </div>
+          <div class="panel-video-frame" aria-hidden="true">
+            <div class="panel-video-play"></div>
+            <span>Trailer / gameplay capture</span>
+          </div>
+        </div>
+
+        <div class="panel-body">
+          <p class="eyebrow" id="projectKicker"></p>
+          <h2 id="projectTitle"></h2>
+          <p id="projectSubtitle" class="panel-subtitle"></p>
+          <p id="projectDescription"></p>
+
+          <div class="meta-grid">
+            <p><strong>Moteur</strong><span id="projectEngine"></span></p>
+            <p><strong>Focus</strong><span id="projectFocus"></span></p>
+            <p><strong>Contexte</strong><span id="projectContext"></span></p>
+            <p><strong>Role</strong><span id="projectRole"></span></p>
+            <p><strong>Periode</strong><span id="projectYear"></span></p>
+            <p><strong>Stack</strong><span id="projectStack"></span></p>
+          </div>
+
+          <blockquote id="projectAtmosphere"></blockquote>
+        </div>
+      </section>
+
+      <div id="crosshair" aria-hidden="true"></div>
+
+      <footer id="hintBar">
+        <span>Clic scene pour capturer la souris</span>
+        <span>ZQSD / WASD pour marcher</span>
+        <span>E pour ouvrir, Echap pour liberer</span>
+      </footer>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
+
