@@ -172,17 +172,17 @@ const projects: ProjectData[] = [
   {
     id: "survivorSlime",
     title: "Survivor Slime",
-    subtitle: "Prototype survivor ultra lisible sous Unreal Engine 5",
+    subtitle: "FPS roguelike a vagues sous Unreal Engine 5",
     description:
-      "Le jeu repose sur une boucle centrale simple mais systemique: des ennemis simples fusionnent dynamiquement pour faire emerger des elites, ce qui cree une pression constante, pousse au repositionnement et renforce l'importance du controle de foule.",
+      "FPS roguelike base sur des vagues d'ennemis dans lequel le joueur incarne un agent municipal intergalactique charge de nettoyer des zones infectees par une matiere vivante instable.\n\nCore loop\n- entrer dans une zone\n- survivre aux vagues de slimes\n- gerer les merges ennemis\n- recuperer recompenses et progression\n- encaisser l'escalade de difficulte jusqu'a l'extraction ou la mort\n\nMecanique cle - Merge system\n- 3 slimes identiques et de meme power fusionnent\n- la puissance evolue par paliers (1 -> 4 -> 16 -> ...)\n- la taille, les HP et le niveau de menace augmentent\n- un cooldown de merge protege la lisibilite du systeme\n\nA la mort d'un slime fusionne\n- spawn de A slimes gris\n- ces slimes gris ne fusionnent pas\n- ils servent de fallback vers l'etat de base",
     engine: "Unreal Engine 5",
-    focus: "Boucle de survie, fusion dynamique, lisibilite, gameplay skill-based",
+    focus: "Merge system, horde combat, architecture IA scalable, roguelike loop",
     context: "Projet de fin d'etude de master",
-    role: "Game programmer, design iteration, combat feedback",
+    role: "Gameplay programmer, AI architecture, combat systems, VFX gameplay",
     year: "2025/2026",
-    stack: "UE5, Blueprints, gameplay systems, balancing, optimisation",
+    stack: "UE5, Blueprints, Behavior Trees, NavMesh, Niagara, optimisation",
     atmosphere:
-      "Le design cherche une escalade de tension organique, des situations emergentes et une lecture immediate malgre la densite. Le tout dans un style stylise, pense pour supporter de grandes quantites d'ennemis simultanes.",
+      "Piliers du gameplay\n- escalade systemique: merge -> menace exponentielle\n- lisibilite et controle: VFX clairs, comportements distincts\n- gameplay nerveux: FPS rapide et gestion de horde\n- rejouabilite roguelike\n\nArchitecture IA\n- BP_EnemyMain derive de Character\n- navigation via NavMesh\n- Behavior Tree simple avec une task Move unique\n- chaque slime decide comment se deplacer: crawl, jump, super jump, dash ou glide selon sa variante\n\nRefonte du systeme ennemi\n- passage a une architecture scalable\n- resolution des problemes de physique et de navigation\n- hop system propre via LaunchCharacter, OnLanded et timers\n- Mega Jump AOE avec preview Niagara, impact et knockback joueur\n- VFX lisibles et performants sans tick global",
     accent: "Exposition 01",
     color: new BABYLON.Color3(0.2, 0.95, 0.65),
     position: new BABYLON.Vector3(-ROOM_OFFSET, 0, -ROOM_OFFSET),
@@ -259,6 +259,10 @@ const combatHud = document.getElementById("combatHud") as HTMLDivElement;
 const projectPanel = document.getElementById("projectPanel") as HTMLDivElement;
 const projectPanelBody = projectPanel.querySelector(".panel-body") as HTMLDivElement;
 const closePanelBtn = document.getElementById("closePanel") as HTMLButtonElement;
+const overviewTrigger = document.getElementById("overviewTrigger") as HTMLButtonElement;
+const projectsOverview = document.getElementById("projectsOverview") as HTMLDivElement;
+const closeOverviewBtn = document.getElementById("closeOverview") as HTMLButtonElement;
+const overviewList = document.getElementById("overviewList") as HTMLDivElement;
 const crosshair = document.getElementById("crosshair") as HTMLDivElement;
 const statusPill = document.getElementById("statusPill") as HTMLDivElement;
 const combatScore = document.getElementById("combatScore") as HTMLSpanElement;
@@ -300,9 +304,13 @@ function updateStatus(message: string) {
   statusPill.textContent = message;
 }
 
+function isOverviewOpen() {
+  return !projectsOverview.classList.contains("hidden");
+}
+
 function syncCrosshairVisibility() {
   const panelOpen = !projectPanel.classList.contains("hidden");
-  crosshair.classList.toggle("hidden", panelOpen || !isPointerLocked);
+  crosshair.classList.toggle("hidden", panelOpen || isOverviewOpen() || !isPointerLocked);
 }
 
 function getFreeRoamStatusMessage() {
@@ -327,6 +335,36 @@ function renderActiveCard() {
   cardMap.forEach((button, projectId) => {
     button.classList.toggle("active", projectId === activeProjectId);
   });
+}
+
+function formatOverviewText(value: string) {
+  return value.replaceAll("\n", "<br>");
+}
+
+function renderProjectsOverview() {
+  overviewList.innerHTML = projects
+    .map(
+      (project) => `
+        <article class="overview-card">
+          <p class="eyebrow">${project.accent}</p>
+          <h3>${project.title}</h3>
+          <p class="overview-card-subtitle">${project.subtitle}</p>
+          <p class="overview-card-description">${formatOverviewText(project.description)}</p>
+
+          <div class="overview-card-meta">
+            <p><strong>Moteur</strong><span>${project.engine}</span></p>
+            <p><strong>Focus</strong><span>${project.focus}</span></p>
+            <p><strong>Contexte</strong><span>${project.context}</span></p>
+            <p><strong>Role</strong><span>${project.role}</span></p>
+            <p><strong>Periode</strong><span>${project.year}</span></p>
+            <p><strong>Stack</strong><span>${project.stack}</span></p>
+          </div>
+
+          <blockquote class="overview-card-quote">${formatOverviewText(project.atmosphere)}</blockquote>
+        </article>
+      `
+    )
+    .join("");
 }
 
 function getRoomBasis(project: ProjectData) {
@@ -377,6 +415,27 @@ function closeProjectPanel() {
   updateStatus(getFreeRoamStatusMessage());
 }
 
+function openProjectsOverview() {
+  if (document.pointerLockElement === canvas) {
+    document.exitPointerLock();
+  }
+
+  projectPanel.classList.add("hidden");
+  closePanelBtn.classList.add("hidden");
+  heroPanel.classList.add("hidden");
+  projectsOverview.classList.remove("hidden");
+  syncCrosshairVisibility();
+  updateStatus("Vue rapide du portfolio ouverte.");
+}
+
+function closeProjectsOverview() {
+  projectsOverview.classList.add("hidden");
+  heroPanel.classList.remove("hidden");
+  syncCrosshairVisibility();
+  updateStatus(getFreeRoamStatusMessage());
+}
+
+renderProjectsOverview();
 syncCrosshairVisibility();
 
 function openProjectInfo(projectId: string) {
@@ -391,8 +450,14 @@ function openProjectInfo(projectId: string) {
 }
 
 closePanelBtn.addEventListener("click", closeProjectPanel);
+overviewTrigger.addEventListener("click", openProjectsOverview);
+closeOverviewBtn.addEventListener("click", closeProjectsOverview);
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isOverviewOpen()) {
+      closeProjectsOverview();
+      return;
+    }
     closeProjectPanel();
   }
 });
@@ -540,6 +605,156 @@ function createDecorScreen(
     color.scale(0.85),
     0.92
   );
+}
+
+function createProjectTrailerBillboard(
+  scene: BABYLON.Scene,
+  project: ProjectData,
+  position: BABYLON.Vector3,
+  rotationY: number
+) {
+  const root = new BABYLON.TransformNode(`${project.id}_trailerBillboardRoot`, scene);
+  root.position = position.add(new BABYLON.Vector3(0, 3.34, 0));
+  root.rotation.y = rotationY;
+
+  const frameMaterial = createMaterial(
+    scene,
+    `${project.id}_trailerFrameMat`,
+    new BABYLON.Color3(0.1, 0.13, 0.16),
+    project.color.scale(0.12)
+  );
+  frameMaterial.specularColor = new BABYLON.Color3(0.28, 0.34, 0.38);
+  frameMaterial.specularPower = 78;
+
+  const glowMaterial = createMaterial(
+    scene,
+    `${project.id}_trailerGlowMat`,
+    new BABYLON.Color3(0.08, 0.16, 0.12),
+    project.color.scale(0.58),
+    0.18
+  );
+  glowMaterial.disableLighting = true;
+
+  const screenTexture = new BABYLON.DynamicTexture(
+    `${project.id}_trailerTexture`,
+    { width: 1536, height: 896 },
+    scene,
+    true
+  );
+  screenTexture.hasAlpha = true;
+  const context = screenTexture.getContext();
+
+  context.clearRect(0, 0, 1536, 896);
+  const gradient = context.createLinearGradient(0, 0, 0, 896);
+  gradient.addColorStop(0, "rgba(8, 14, 24, 0.98)");
+  gradient.addColorStop(1, "rgba(3, 8, 14, 0.98)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, 1536, 896);
+
+  context.fillStyle = "rgba(98, 255, 196, 0.08)";
+  context.fillRect(96, 88, 1344, 720);
+
+  for (let line = 0; line < 24; line += 1) {
+    context.fillStyle = `rgba(255, 255, 255, ${0.012 + (line % 3) * 0.006})`;
+    context.fillRect(96, 88 + line * 30, 1344, 1);
+  }
+
+  context.strokeStyle = "rgba(69, 255, 191, 0.55)";
+  context.lineWidth = 4;
+  context.strokeRect(96, 88, 1344, 720);
+
+  context.fillStyle = "rgba(127, 231, 203, 0.96)";
+  context.font = "600 38px Segoe UI";
+  context.fillText("TRAILER / GAMEPLAY CAPTURE", 142, 162);
+
+  context.fillStyle = "rgba(242, 247, 255, 0.98)";
+  context.font = "700 102px Segoe UI";
+  context.fillText(project.title, 136, 336);
+
+  context.fillStyle = "rgba(185, 208, 255, 0.82)";
+  context.font = "400 42px Segoe UI";
+  context.fillText("FPS roguelike | Merge system | Horde combat", 142, 402);
+
+  context.fillStyle = "rgba(52, 255, 182, 0.18)";
+  context.beginPath();
+  context.arc(768, 490, 118, 0, Math.PI * 2);
+  context.fill();
+
+  context.strokeStyle = "rgba(129, 255, 210, 0.72)";
+  context.lineWidth = 5;
+  context.beginPath();
+  context.arc(768, 490, 118, 0, Math.PI * 2);
+  context.stroke();
+
+  context.fillStyle = "rgba(245, 250, 255, 0.96)";
+  context.beginPath();
+  context.moveTo(740, 430);
+  context.lineTo(740, 550);
+  context.lineTo(836, 490);
+  context.closePath();
+  context.fill();
+
+  context.fillStyle = "rgba(134, 255, 210, 0.92)";
+  context.font = "700 44px Segoe UI";
+  context.fillText("WATCH THE PROTOTYPE", 538, 676);
+
+  context.fillStyle = "rgba(214, 226, 255, 0.72)";
+  context.font = "400 28px Segoe UI";
+  context.fillText("Placeholder en attendant l'integration de la vraie video trailer.", 432, 726);
+  screenTexture.update();
+
+  const screenMaterial = new BABYLON.StandardMaterial(
+    `${project.id}_trailerScreenMat`,
+    scene
+  );
+  screenMaterial.diffuseTexture = screenTexture;
+  screenMaterial.emissiveTexture = screenTexture;
+  screenMaterial.opacityTexture = screenTexture;
+  screenMaterial.emissiveColor = new BABYLON.Color3(0.92, 0.98, 1);
+  screenMaterial.disableLighting = true;
+  screenMaterial.backFaceCulling = false;
+
+  const frame = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_trailerFrame`,
+    { width: 8.2, height: 4.72, depth: 0.18 },
+    scene
+  );
+  frame.parent = root;
+  frame.position.z = 0.02;
+  frame.isPickable = false;
+  frame.material = frameMaterial;
+
+  const screen = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_trailerScreen`,
+    { width: 7.82, height: 4.34, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+    scene
+  );
+  screen.parent = root;
+  screen.position.z = -0.1;
+  screen.isPickable = false;
+  screen.material = screenMaterial;
+
+  const glow = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_trailerGlow`,
+    { width: 8.55, height: 5.02, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+    scene
+  );
+  glow.parent = root;
+  glow.position.z = -0.18;
+  glow.isPickable = false;
+  glow.material = glowMaterial;
+
+  for (const side of [-1, 1]) {
+    const support = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_trailerSupport_${side}`,
+      { width: 0.12, height: 2.9, depth: 0.12 },
+      scene
+    );
+    support.parent = root;
+    support.position = new BABYLON.Vector3(3.42 * side, -3.8, 0.02);
+    support.isPickable = false;
+    support.material = frameMaterial;
+  }
 }
 
 function getOrCreateRockMaterial(
@@ -2985,6 +3200,7 @@ function createProjectLabel(
       interactionMode: "panel",
       interactionDistance: PANEL_INTERACTION_DISTANCE,
     } satisfies ProjectInteractionMetadata;
+    createProjectTrailerBillboard(scene, project, label.position.clone(), label.rotation.y);
   } else {
     if (root) {
       label.parent = root;

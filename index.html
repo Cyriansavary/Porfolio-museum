@@ -19,6 +19,10 @@
           </p>
         </div>
 
+        <button id="overviewTrigger" class="overview-trigger" type="button">
+          Pas le temps pour jouer ? Clique ici
+        </button>
+
         <div class="topbar-actions">
           <div id="statusPill" class="status-pill">Clique dans la scene pour entrer en mode visite.</div>
           <button id="closePanel" class="ghost-button hidden">Masquer la fiche</button>
@@ -79,6 +83,24 @@
           </div>
 
           <blockquote id="projectAtmosphere"></blockquote>
+        </div>
+      </section>
+
+      <section id="projectsOverview" class="overview hidden" aria-live="polite">
+        <div class="overview-shell">
+          <div class="overview-header">
+            <div>
+              <p class="eyebrow">Fast Track</p>
+              <h2>Tous les projets en un coup d'oeil</h2>
+              <p>
+                Une lecture rapide du portfolio si tu n'as pas le temps de faire
+                la visite interactive.
+              </p>
+            </div>
+            <button id="closeOverview" class="ghost-button" type="button">Fermer</button>
+          </div>
+
+          <div id="overviewList" class="overview-list"></div>
         </div>
       </section>
 

@@ -96,17 +96,52 @@ body::before {
   gap: 12px;
 }
 
+.overview-trigger,
 .status-pill,
 .ghost-button,
 #heroPanel,
 #combatHud,
 .panel,
-#projectRail,
 #hintBar {
   border: 1px solid rgba(132, 180, 255, 0.18);
   background: rgba(7, 12, 24, 0.68);
   backdrop-filter: blur(16px);
   box-shadow: 0 18px 60px rgba(0, 0, 0, 0.32);
+}
+
+.overview-trigger {
+  pointer-events: auto;
+  position: absolute;
+  left: 50%;
+  top: 10px;
+  transform: translateX(-50%);
+  padding: 14px 22px;
+  border-radius: 999px;
+  border: 1px solid rgba(132, 180, 255, 0.2);
+  background:
+    linear-gradient(180deg, rgba(13, 20, 35, 0.88), rgba(8, 14, 26, 0.84)),
+    rgba(7, 12, 24, 0.78);
+  color: #f5f7ff;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition:
+    transform 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    background 0.2s ease;
+}
+
+.overview-trigger:hover {
+  transform: translateX(-50%) translateY(-2px);
+  border-color: rgba(130, 255, 210, 0.38);
+  background:
+    linear-gradient(180deg, rgba(16, 26, 42, 0.94), rgba(10, 18, 32, 0.9)),
+    rgba(7, 12, 24, 0.86);
+  box-shadow:
+    0 18px 52px rgba(0, 0, 0, 0.32),
+    0 0 0 1px rgba(130, 255, 210, 0.06);
 }
 
 .status-pill {
@@ -135,13 +170,12 @@ body::before {
 }
 
 #projectRail {
+  display: none;
   position: absolute;
   left: 24px;
   top: 236px;
   width: min(320px, calc(100vw - 48px));
-  padding: 14px;
-  border-radius: 24px;
-  display: grid;
+  padding: 0;
   gap: 10px;
   pointer-events: auto;
 }
@@ -268,12 +302,159 @@ body::before {
   right: 24px;
   top: 116px;
   bottom: 96px;
-  width: min(420px, calc(100vw - 48px));
+  width: min(75vw, 1320px);
+  max-width: calc(100vw - 48px);
   border-radius: 28px;
   overflow: hidden;
   pointer-events: auto;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
+}
+
+.overview {
+  position: absolute;
+  inset: 24px;
+  pointer-events: auto;
+  border-radius: 32px;
+  border: 1px solid rgba(132, 180, 255, 0.18);
+  background:
+    linear-gradient(180deg, rgba(8, 13, 25, 0.96), rgba(5, 9, 18, 0.95)),
+    rgba(6, 10, 20, 0.94);
+  backdrop-filter: blur(18px);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
+  overflow: hidden;
+}
+
+.overview-shell {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+.overview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 20px;
+  padding: 30px 32px 22px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.overview-header h2 {
+  margin: 0;
+  font-size: clamp(30px, 4vw, 48px);
+  line-height: 1;
+}
+
+.overview-header p:last-child {
+  margin: 12px 0 0;
+  max-width: 58ch;
+  color: rgba(225, 234, 255, 0.74);
+  line-height: 1.6;
+}
+
+.overview-list {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 26px 32px 32px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 239, 203, 0.82) rgba(255, 255, 255, 0.06);
+}
+
+.overview-list::-webkit-scrollbar {
+  width: 10px;
+}
+
+.overview-list::-webkit-scrollbar-track {
+  margin: 10px 0;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.08));
+}
+
+.overview-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  border: 2px solid rgba(8, 12, 24, 0.92);
+  background:
+    linear-gradient(180deg, rgba(164, 227, 255, 0.95), rgba(120, 239, 202, 0.95)),
+    rgba(120, 239, 202, 0.88);
+}
+
+.overview-card {
+  padding: 22px;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.02)),
+    rgba(255, 255, 255, 0.018);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+
+.overview-card .eyebrow {
+  margin-bottom: 8px;
+}
+
+.overview-card h3 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.05;
+}
+
+.overview-card-subtitle {
+  margin: 10px 0 0;
+  color: rgba(155, 208, 255, 0.84);
+  font-size: 15px;
+}
+
+.overview-card-description,
+.overview-card-quote {
+  margin: 18px 0 0;
+  color: rgba(231, 238, 255, 0.86);
+  line-height: 1.65;
+  white-space: pre-line;
+}
+
+.overview-card-meta {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.overview-card-meta p {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.overview-card-meta strong,
+.overview-card-meta span {
+  display: block;
+}
+
+.overview-card-meta strong {
+  margin-bottom: 5px;
+  color: rgba(198, 214, 255, 0.58);
+  font-size: 11px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.overview-card-meta span {
+  line-height: 1.45;
+  color: #f5f7ff;
+}
+
+.overview-card-quote {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border-left: 3px solid rgba(132, 218, 255, 0.6);
+  border-radius: 0 18px 18px 0;
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .panel-video {
@@ -398,6 +579,11 @@ body::before {
 
 .panel-body > p {
   line-height: 1.65;
+}
+
+#projectDescription,
+blockquote {
+  white-space: pre-line;
 }
 
 .meta-grid {
@@ -562,6 +748,7 @@ blockquote {
   #heroPanel,
   #combatHud,
   .panel,
+  .overview,
   #hintBar {
     left: 20px;
     right: 20px;
@@ -585,6 +772,10 @@ blockquote {
   .panel {
     top: 108px;
     bottom: 20px;
+  }
+
+  .overview {
+    inset: 20px;
   }
 
   #hintBar {
@@ -626,6 +817,25 @@ blockquote {
     bottom: 14px;
   }
 
+  .overview {
+    inset: 14px;
+    border-radius: 24px;
+  }
+
+  .overview-header {
+    padding: 22px 20px 18px;
+    flex-direction: column;
+  }
+
+  .overview-list {
+    padding: 18px 20px 20px;
+    grid-template-columns: 1fr;
+  }
+
+  .overview-card-meta {
+    grid-template-columns: 1fr;
+  }
+
   .panel-media {
     height: 132px;
   }
@@ -642,6 +852,17 @@ blockquote {
   .topbar-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .overview-trigger {
+    position: static;
+    transform: none;
+    width: 100%;
+    margin-top: 12px;
+  }
+
+  .overview-trigger:hover {
+    transform: translateY(-2px);
   }
 }
 
