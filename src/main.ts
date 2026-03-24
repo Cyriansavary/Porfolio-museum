@@ -125,6 +125,64 @@ type SlimeWeaponSystem = {
   dispose: () => void;
 };
 
+type VRCookingOrderType =
+  | "classic"
+  | "cheese"
+  | "salad"
+  | "tomato"
+  | "cheeseTomato"
+  | "cheeseSalad"
+  | "fresh"
+  | "deluxe";
+
+type VRCookingInventory = {
+  bun: boolean;
+  rawSteak: boolean;
+  cookedSteak: boolean;
+  cheese: boolean;
+  lettuce: boolean;
+  tomato: boolean;
+  burger: VRCookingOrderType | null;
+};
+
+type VRCookingStationType =
+  | "bunBin"
+  | "steakBin"
+  | "cheeseBin"
+  | "saladBin"
+  | "tomatoBin"
+  | "grill"
+  | "prep"
+  | "serve"
+  | "trash";
+
+type VRCookingOrder = {
+  id: number;
+  type: VRCookingOrderType;
+  title: string;
+  ingredients: string[];
+  reward: number;
+  timeLimitMs: number;
+  expiresAt: number;
+};
+
+type CookingPopupTone = "neutral" | "success" | "warning" | "error";
+
+type VRCookingStation = {
+  id: VRCookingStationType;
+  label: string;
+  prompt: string;
+  interactionMesh: BABYLON.AbstractMesh;
+  meshes: BABYLON.AbstractMesh[];
+  emissiveColor: BABYLON.Color3;
+};
+
+type VRCookingSystem = {
+  update: () => void;
+  interact: () => boolean;
+  isPlayerInsideZone: () => boolean;
+};
+
 const PLAYER_HEIGHT = 1.72;
 const INTERACTION_DISTANCE = 6;
 const PANEL_INTERACTION_DISTANCE = 12.5;
@@ -142,6 +200,18 @@ const SLIME_WEAPON_RANGE = 24;
 const SLIME_WEAPON_COOLDOWN = 0.2;
 const SLIME_WEAPON_BOLT_LIFETIME = 120;
 const SLIME_WEAPON_SCORE_PER_KILL = 100;
+const VR_COOKING_ZONE_WIDTH = 14;
+const VR_COOKING_ZONE_DEPTH = 13.4;
+const VR_COOKING_INTERACTION_DISTANCE = 4.4;
+const VR_COOKING_GRILL_TIME = 4.5;
+const VR_COOKING_ORDER_COUNT = 2;
+const VR_COOKING_ORDER_TIME_LIMIT = 48;
+const VR_COOKING_ORDER_WARNING_TIME = 16;
+const VR_COOKING_ORDER_DANGER_TIME = 8;
+const VR_COOKING_TIMEOUT_PENALTY = 45;
+const VR_COOKING_COMBO_WINDOW = 7;
+const VR_COOKING_COMBO_BONUS_STEP = 20;
+const VR_COOKING_COMBO_MAX_BONUS = 80;
 const START_POSITION = new BABYLON.Vector3(0, PLAYER_HEIGHT, 8);
 const ROOM_OFFSET = 15;
 const WALK_SPEED = 6.2;
@@ -268,6 +338,13 @@ const statusPill = document.getElementById("statusPill") as HTMLDivElement;
 const combatScore = document.getElementById("combatScore") as HTMLSpanElement;
 const combatStatus = document.getElementById("combatStatus") as HTMLParagraphElement;
 const combatPopup = document.getElementById("combatPopup") as HTMLDivElement;
+const cookingHud = document.getElementById("cookingHud") as HTMLDivElement;
+const cookingScore = document.getElementById("cookingScore") as HTMLSpanElement;
+const cookingRush = document.getElementById("cookingRush") as HTMLSpanElement;
+const cookingCombo = document.getElementById("cookingCombo") as HTMLSpanElement;
+const cookingHeld = document.getElementById("cookingHeld") as HTMLParagraphElement;
+const cookingHint = document.getElementById("cookingHint") as HTMLParagraphElement;
+const cookingPopup = document.getElementById("cookingPopup") as HTMLDivElement;
 
 const projectKicker = document.getElementById("projectKicker") as HTMLParagraphElement;
 const projectTitle = document.getElementById("projectTitle") as HTMLHeadingElement;
@@ -294,7 +371,9 @@ let focusProject: (projectId: string, shouldOpenPanel: boolean) => void = () => 
 let playerCamera: BABYLON.UniversalCamera | null = null;
 let isPointerLocked = false;
 let isInSlimeCombatZone = false;
+let isInVRCookingZone = false;
 let combatPopupHideAt = 0;
+let cookingPopupHideAt = 0;
 
 function rgbString(color: BABYLON.Color3) {
   return `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
@@ -318,6 +397,10 @@ function getFreeRoamStatusMessage() {
     return "Zone Survivor Slime - clic gauche pour tirer, Shift pour sprinter, Space pour sauter";
   }
 
+  if (isPointerLocked && isInVRCookingZone) {
+    return "Zone VR Cooking - vise une station et clique ou appuie sur E pour cuisiner";
+  }
+
   return isPointerLocked
     ? "Visite libre active - Shift pour sprinter, Space pour sauter"
     : "Clique dans la scene pour entrer en mode visite.";
@@ -329,6 +412,22 @@ function showCombatPopup(message: string) {
   void combatPopup.offsetWidth;
   combatPopup.classList.add("visible");
   combatPopupHideAt = performance.now() + 800;
+}
+
+function showCookingPopup(
+  message: string,
+  tone: CookingPopupTone = "neutral",
+  durationMs = 900
+) {
+  cookingPopup.textContent = message;
+  cookingPopup.classList.remove("success", "warning", "error");
+  if (tone !== "neutral") {
+    cookingPopup.classList.add(tone);
+  }
+  cookingPopup.classList.remove("visible");
+  void cookingPopup.offsetWidth;
+  cookingPopup.classList.add("visible");
+  cookingPopupHideAt = performance.now() + durationMs;
 }
 
 function renderActiveCard() {
@@ -607,12 +706,1935 @@ function createDecorScreen(
   );
 }
 
+function createKitchenCounterModule(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  width: number,
+  depth: number,
+  accentColor: BABYLON.Color3,
+  height = 0.92
+) {
+  const root = new BABYLON.TransformNode(`${name}_root`, scene);
+  root.position = position.clone();
+  root.rotation.y = rotationY;
+
+  const bodyMat = createMaterial(
+    scene,
+    `${name}_bodyMat`,
+    new BABYLON.Color3(0.2, 0.2, 0.19),
+    accentColor.scale(0.08)
+  );
+  const topMat = createMaterial(
+    scene,
+    `${name}_topMat`,
+    new BABYLON.Color3(0.45, 0.3, 0.18),
+    accentColor.scale(0.12)
+  );
+  const trimMat = createMaterial(
+    scene,
+    `${name}_trimMat`,
+    new BABYLON.Color3(0.08, 0.08, 0.09),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+
+  const body = BABYLON.MeshBuilder.CreateBox(
+    `${name}_body`,
+    { width, height, depth },
+    scene
+  );
+  body.parent = root;
+  body.position.y = height * 0.5;
+  body.isPickable = false;
+  body.material = bodyMat;
+
+  const top = BABYLON.MeshBuilder.CreateBox(
+    `${name}_top`,
+    { width: width + 0.08, height: 0.08, depth: depth + 0.08 },
+    scene
+  );
+  top.parent = root;
+  top.position.y = height + 0.04;
+  top.isPickable = false;
+  top.material = topMat;
+
+  const kick = BABYLON.MeshBuilder.CreateBox(
+    `${name}_kick`,
+    { width: width - 0.12, height: 0.1, depth: depth - 0.12 },
+    scene
+  );
+  kick.parent = root;
+  kick.position.y = 0.05;
+  kick.isPickable = false;
+  kick.material = trimMat;
+
+  enableCollisions(body, top, kick);
+  return root;
+}
+
+function createKitchenTallUnit(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  width: number,
+  depth: number,
+  height: number,
+  accentColor: BABYLON.Color3
+) {
+  const root = new BABYLON.TransformNode(`${name}_root`, scene);
+  root.position = position.clone();
+  root.rotation.y = rotationY;
+
+  const bodyMat = createMaterial(
+    scene,
+    `${name}_bodyMat`,
+    new BABYLON.Color3(0.72, 0.72, 0.7),
+    accentColor.scale(0.06)
+  );
+  const trimMat = createMaterial(
+    scene,
+    `${name}_trimMat`,
+    new BABYLON.Color3(0.18, 0.18, 0.18),
+    accentColor.scale(0.08)
+  );
+
+  const body = BABYLON.MeshBuilder.CreateBox(
+    `${name}_body`,
+    { width, height, depth },
+    scene
+  );
+  body.parent = root;
+  body.position.y = height * 0.5;
+  body.isPickable = false;
+  body.material = bodyMat;
+
+  const upperDoor = BABYLON.MeshBuilder.CreateBox(
+    `${name}_upperDoor`,
+    { width: width - 0.04, height: height * 0.46, depth: 0.04 },
+    scene
+  );
+  upperDoor.parent = root;
+  upperDoor.position = new BABYLON.Vector3(0, height * 0.72, -depth * 0.5 - 0.02);
+  upperDoor.isPickable = false;
+  upperDoor.material = trimMat;
+
+  const lowerDoor = BABYLON.MeshBuilder.CreateBox(
+    `${name}_lowerDoor`,
+    { width: width - 0.04, height: height * 0.4, depth: 0.04 },
+    scene
+  );
+  lowerDoor.parent = root;
+  lowerDoor.position = new BABYLON.Vector3(0, height * 0.24, -depth * 0.5 - 0.02);
+  lowerDoor.isPickable = false;
+  lowerDoor.material = trimMat;
+
+  enableCollisions(body, upperDoor, lowerDoor);
+  return root;
+}
+
+function createKitchenPendantLight(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  color: BABYLON.Color3
+) {
+  const cable = BABYLON.MeshBuilder.CreateCylinder(
+    `${name}_cable`,
+    { diameter: 0.03, height: 1.2, tessellation: 8 },
+    scene
+  );
+  cable.position = position.add(new BABYLON.Vector3(0, -0.6, 0));
+  cable.isPickable = false;
+  cable.material = createMaterial(
+    scene,
+    `${name}_cableMat`,
+    new BABYLON.Color3(0.06, 0.06, 0.07),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+
+  const shade = BABYLON.MeshBuilder.CreateCylinder(
+    `${name}_shade`,
+    { diameterTop: 0.28, diameterBottom: 0.82, height: 0.42, tessellation: 20 },
+    scene
+  );
+  shade.position = position.add(new BABYLON.Vector3(0, -1.22, 0));
+  shade.isPickable = false;
+  shade.material = createMaterial(
+    scene,
+    `${name}_shadeMat`,
+    new BABYLON.Color3(0.9, 0.86, 0.78),
+    color.scale(0.16)
+  );
+
+  const bulb = BABYLON.MeshBuilder.CreateSphere(
+    `${name}_bulb`,
+    { diameter: 0.18, segments: 10 },
+    scene
+  );
+  bulb.position = position.add(new BABYLON.Vector3(0, -1.28, 0));
+  bulb.isPickable = false;
+  bulb.material = createMaterial(
+    scene,
+    `${name}_bulbMat`,
+    new BABYLON.Color3(0.96, 0.88, 0.62),
+    new BABYLON.Color3(0.64, 0.42, 0.12)
+  );
+
+  const light = new BABYLON.PointLight(`${name}_light`, bulb.position.clone(), scene);
+  light.diffuse = new BABYLON.Color3(1, 0.84, 0.66);
+  light.intensity = 0.65;
+  light.range = 8;
+}
+
+function createVrCookingZone(scene: BABYLON.Scene, project: ProjectData) {
+  const { right, back, yaw } = getRoomBasis(project);
+  const zoneWidth = VR_COOKING_ZONE_WIDTH;
+  const zoneDepth = VR_COOKING_ZONE_DEPTH;
+  const wallHeight = 4.8;
+  const wallThickness = 0.45;
+  const entranceHalfWidth = 2.6;
+  const toWorld = (x: number, y: number, z: number) =>
+    project.position
+      .add(right.scale(x))
+      .add(back.scale(z))
+      .add(new BABYLON.Vector3(0, y, 0));
+
+  const floor = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_kitchenFloor`,
+    { width: zoneWidth, height: 0.08, depth: zoneDepth },
+    scene
+  );
+  floor.position = toWorld(0, 0.04, 0);
+  floor.rotation.y = yaw;
+  floor.checkCollisions = true;
+  floor.isPickable = false;
+  floor.material = createMaterial(
+    scene,
+    `${project.id}_kitchenFloorMat`,
+    new BABYLON.Color3(0.2, 0.18, 0.15),
+    project.color.scale(0.08)
+  );
+
+  const ceiling = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_kitchenCeiling`,
+    { width: zoneWidth, height: 0.08, depth: zoneDepth },
+    scene
+  );
+  ceiling.position = toWorld(0, wallHeight + 0.04, 0);
+  ceiling.rotation.y = yaw;
+  ceiling.isPickable = false;
+  ceiling.material = createMaterial(
+    scene,
+    `${project.id}_kitchenCeilingMat`,
+    new BABYLON.Color3(0.14, 0.13, 0.12),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+
+  const wallMaterial = createMaterial(
+    scene,
+    `${project.id}_kitchenWallMat`,
+    new BABYLON.Color3(0.82, 0.78, 0.72),
+    project.color.scale(0.03)
+  );
+  const trimMaterial = createMaterial(
+    scene,
+    `${project.id}_kitchenTrimMat`,
+    new BABYLON.Color3(0.26, 0.22, 0.18),
+    project.color.scale(0.08)
+  );
+
+  const wallSegments = [
+    {
+      name: "rear",
+      size: { width: zoneWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: 0, z: zoneDepth * 0.5 },
+    },
+    {
+      name: "left",
+      size: { width: wallThickness, height: wallHeight, depth: zoneDepth + wallThickness },
+      position: { x: -zoneWidth * 0.5, z: 0 },
+    },
+    {
+      name: "right",
+      size: { width: wallThickness, height: wallHeight, depth: zoneDepth + wallThickness },
+      position: { x: zoneWidth * 0.5, z: 0 },
+    },
+    {
+      name: "frontLeft",
+      size: { width: zoneWidth * 0.5 - entranceHalfWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: -(entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth) * 0.5), z: -zoneDepth * 0.5 },
+    },
+    {
+      name: "frontRight",
+      size: { width: zoneWidth * 0.5 - entranceHalfWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth) * 0.5, z: -zoneDepth * 0.5 },
+    },
+  ];
+
+  wallSegments.forEach((segment) => {
+    const wall = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_kitchenWall_${segment.name}`,
+      segment.size,
+      scene
+    );
+    wall.position = toWorld(
+      segment.position.x,
+      wallHeight * 0.5,
+      segment.position.z
+    );
+    wall.rotation.y = yaw;
+    wall.checkCollisions = true;
+    wall.isPickable = false;
+    wall.material = wallMaterial;
+
+    const trim = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_kitchenTrim_${segment.name}`,
+      {
+        width: segment.size.width + (segment.size.depth > segment.size.width ? 0 : 0.12),
+        height: 0.12,
+        depth: segment.size.depth + (segment.size.width > segment.size.depth ? 0 : 0.12),
+      },
+      scene
+    );
+    trim.position = wall.position.add(new BABYLON.Vector3(0, wallHeight * 0.5 + 0.07, 0));
+    trim.rotation.y = yaw;
+    trim.isPickable = false;
+    trim.material = trimMaterial;
+  });
+
+  const halo = BABYLON.MeshBuilder.CreateDisc(
+    `${project.id}_kitchenHalo`,
+    { radius: 4.8, tessellation: 64 },
+    scene
+  );
+  halo.position = toWorld(0, 0.05, 0);
+  halo.rotation.x = Math.PI / 2;
+  halo.isPickable = false;
+  halo.material = createMaterial(
+    scene,
+    `${project.id}_kitchenHaloMat`,
+    project.color.scale(0.06),
+    project.color.scale(0.18),
+    0.26
+  );
+
+  const warmFill = new BABYLON.SpotLight(
+    `${project.id}_kitchenFill`,
+    toWorld(0, wallHeight - 0.5, -0.8),
+    new BABYLON.Vector3(0, -1, 0.08),
+    Math.PI / 1.65,
+    10,
+    scene
+  );
+  warmFill.diffuse = new BABYLON.Color3(1, 0.86, 0.68);
+  warmFill.intensity = 0.55;
+
+  for (const offset of [-2.6, 0, 2.6]) {
+    createKitchenPendantLight(
+      scene,
+      `${project.id}_pendant_${offset}`,
+      toWorld(offset, wallHeight - 0.08, -0.4),
+      project.color
+    );
+  }
+}
+
+function createVRCookingSystem(
+  scene: BABYLON.Scene,
+  project: ProjectData,
+  camera: BABYLON.UniversalCamera
+): VRCookingSystem {
+  const { right, back, yaw } = getRoomBasis(project);
+  const zoneHalfWidth = VR_COOKING_ZONE_WIDTH * 0.5;
+  const zoneHalfDepth = VR_COOKING_ZONE_DEPTH * 0.5;
+  const toWorld = (x: number, y: number, z: number) =>
+    project.position
+      .add(right.scale(x))
+      .add(back.scale(z))
+      .add(new BABYLON.Vector3(0, y, 0));
+  const toLocal = (worldPosition: BABYLON.Vector3) => {
+    const offset = worldPosition.subtract(project.position);
+    return new BABYLON.Vector3(
+      BABYLON.Vector3.Dot(offset, right),
+      offset.y,
+      BABYLON.Vector3.Dot(offset, back)
+    );
+  };
+
+  const stations = new Map<VRCookingStationType, VRCookingStation>();
+  const inventory: VRCookingInventory = {
+    bun: false,
+    rawSteak: false,
+    cookedSteak: false,
+    cheese: false,
+    lettuce: false,
+    tomato: false,
+    burger: null,
+  };
+  const orderQueue: VRCookingOrder[] = [];
+  const clientSlots: Array<{
+    body: BABYLON.Mesh;
+    head: BABYLON.Mesh;
+    badge: BABYLON.Mesh;
+  }> = [];
+
+  let focusedStationId: VRCookingStationType | null = null;
+  let score = 0;
+  let grillActive = false;
+  let grillReady = false;
+  let grillProgress = 0;
+  let orderBoardDirty = true;
+  let lastBoardRefreshAt = 0;
+  let nextOrderId = 1;
+  let comboStreak = 0;
+  let comboExpiresAt = 0;
+
+  const resetInventory = () => {
+    inventory.bun = false;
+    inventory.rawSteak = false;
+    inventory.cookedSteak = false;
+    inventory.cheese = false;
+    inventory.lettuce = false;
+    inventory.tomato = false;
+    inventory.burger = null;
+  };
+
+  const isInventoryEmpty = () =>
+    !inventory.bun &&
+    !inventory.rawSteak &&
+    !inventory.cookedSteak &&
+    !inventory.cheese &&
+    !inventory.lettuce &&
+    !inventory.tomato &&
+    inventory.burger === null;
+
+  const recipeBook: Record<
+    VRCookingOrderType,
+    {
+      title: string;
+      ingredients: string[];
+      reward: number;
+      tint: BABYLON.Color3;
+    }
+  > = {
+    classic: {
+      title: "Burger classique",
+      ingredients: ["pain burger", "steak cuit"],
+      reward: 120,
+      tint: new BABYLON.Color3(1, 0.76, 0.3),
+    },
+    cheese: {
+      title: "Cheeseburger",
+      ingredients: ["pain burger", "steak cuit", "fromage"],
+      reward: 145,
+      tint: new BABYLON.Color3(1, 0.88, 0.32),
+    },
+    salad: {
+      title: "Burger salade",
+      ingredients: ["pain burger", "steak cuit", "salade"],
+      reward: 150,
+      tint: new BABYLON.Color3(0.34, 0.92, 0.3),
+    },
+    tomato: {
+      title: "Burger tomate",
+      ingredients: ["pain burger", "steak cuit", "tomate"],
+      reward: 145,
+      tint: new BABYLON.Color3(1, 0.46, 0.36),
+    },
+    cheeseTomato: {
+      title: "Burger cheddar tomate",
+      ingredients: ["pain burger", "steak cuit", "fromage", "tomate"],
+      reward: 175,
+      tint: new BABYLON.Color3(1, 0.62, 0.34),
+    },
+    cheeseSalad: {
+      title: "Burger cheddar salade",
+      ingredients: ["pain burger", "steak cuit", "fromage", "salade"],
+      reward: 178,
+      tint: new BABYLON.Color3(0.74, 0.92, 0.3),
+    },
+    fresh: {
+      title: "Burger fraicheur",
+      ingredients: ["pain burger", "steak cuit", "salade", "tomate"],
+      reward: 176,
+      tint: new BABYLON.Color3(0.3, 0.9, 0.72),
+    },
+    deluxe: {
+      title: "Burger deluxe",
+      ingredients: ["pain burger", "steak cuit", "fromage", "salade", "tomate"],
+      reward: 210,
+      tint: new BABYLON.Color3(0.4, 1, 0.84),
+    },
+  };
+  const orderPool: VRCookingOrderType[] = [
+    "classic",
+    "classic",
+    "cheese",
+    "salad",
+    "tomato",
+    "cheeseTomato",
+    "cheeseSalad",
+    "fresh",
+    "deluxe",
+  ];
+
+  const getHeldLabel = () => {
+    if (inventory.burger) {
+      return `Plateau : ${recipeBook[inventory.burger].title.toLowerCase()} pret a servir`;
+    }
+
+    const items: string[] = [];
+    if (inventory.bun) {
+      items.push("pain");
+    }
+    if (inventory.rawSteak) {
+      items.push("steak cru");
+    }
+    if (inventory.cookedSteak) {
+      items.push("steak cuit");
+    }
+    if (inventory.cheese) {
+      items.push("fromage");
+    }
+    if (inventory.lettuce) {
+      items.push("salade");
+    }
+    if (inventory.tomato) {
+      items.push("tomate");
+    }
+
+    return items.length > 0 ? `Plateau : ${items.join(" + ")}` : "Mains vides";
+  };
+
+  const getOrderIngredients = (type: VRCookingOrderType) =>
+    recipeBook[type].ingredients;
+
+  const createOrder = (now = performance.now()): VRCookingOrder => {
+    const type = orderPool[Math.floor(Math.random() * orderPool.length)];
+    return {
+      id: nextOrderId++,
+      type,
+      title: recipeBook[type].title,
+      ingredients: getOrderIngredients(type),
+      reward: recipeBook[type].reward,
+      timeLimitMs: VR_COOKING_ORDER_TIME_LIMIT * 1000,
+      expiresAt: now + VR_COOKING_ORDER_TIME_LIMIT * 1000,
+    };
+  };
+
+  const refillOrders = (now = performance.now()) => {
+    while (orderQueue.length < VR_COOKING_ORDER_COUNT) {
+      orderQueue.push(createOrder(now));
+    }
+  };
+
+  const getOrderTimeLeftMs = (order: VRCookingOrder, now: number) =>
+    Math.max(0, order.expiresAt - now);
+
+  const getOrderUrgency = (order: VRCookingOrder, now: number) =>
+    1 - Math.min(1, getOrderTimeLeftMs(order, now) / order.timeLimitMs);
+
+  const getComboBonus = () =>
+    Math.min(
+      VR_COOKING_COMBO_MAX_BONUS,
+      Math.max(0, comboStreak - 1) * VR_COOKING_COMBO_BONUS_STEP
+    );
+
+  const registerStation = (
+    id: VRCookingStationType,
+    label: string,
+    prompt: string,
+    interactionMesh: BABYLON.AbstractMesh,
+    meshes: BABYLON.AbstractMesh[],
+    emissiveColor: BABYLON.Color3
+  ) => {
+    interactionMesh.metadata = { vrCookingStationId: id };
+    stations.set(id, {
+      id,
+      label,
+      prompt,
+      interactionMesh,
+      meshes,
+      emissiveColor,
+    });
+  };
+
+  const createHotspot = (
+    name: string,
+    position: BABYLON.Vector3,
+    width: number,
+    depth: number,
+    color: BABYLON.Color3,
+    rotationY = yaw
+  ) => {
+    const hotspot = BABYLON.MeshBuilder.CreateBox(
+      name,
+      { width, height: 0.035, depth },
+      scene
+    );
+    hotspot.position = position;
+    hotspot.rotation.y = rotationY;
+    hotspot.isPickable = true;
+    hotspot.material = createMaterial(
+      scene,
+      `${name}_mat`,
+      color.scale(0.18),
+      color.scale(0.42),
+      0.88
+    );
+    if (hotspot.material instanceof BABYLON.StandardMaterial) {
+      hotspot.material.disableLighting = true;
+    }
+    return hotspot;
+  };
+
+  const boardTexture = new BABYLON.DynamicTexture(
+    `${project.id}_ordersTexture`,
+    { width: 1280, height: 900 },
+    scene,
+    true
+  );
+  boardTexture.hasAlpha = true;
+
+  const boardMaterial = new BABYLON.StandardMaterial(
+    `${project.id}_ordersMat`,
+    scene
+  );
+  boardMaterial.diffuseTexture = boardTexture;
+  boardMaterial.emissiveTexture = boardTexture;
+  boardMaterial.opacityTexture = boardTexture;
+  boardMaterial.disableLighting = true;
+  boardMaterial.backFaceCulling = false;
+
+  const orderBoardX = -0.55;
+  const boardFrame = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_ordersFrame`,
+    { width: 4.48, height: 2.72, depth: 0.14 },
+    scene
+  );
+  boardFrame.position = toWorld(orderBoardX, 2.58, zoneHalfDepth - 0.24);
+  boardFrame.rotation.y = yaw;
+  boardFrame.isPickable = false;
+  boardFrame.material = createMaterial(
+    scene,
+    `${project.id}_ordersFrameMat`,
+    new BABYLON.Color3(0.12, 0.13, 0.16),
+    project.color.scale(0.12)
+  );
+
+  const orderBoard = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_ordersBoard`,
+    { width: 4.2, height: 2.48, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+    scene
+  );
+  orderBoard.position = boardFrame.position.add(back.scale(-0.09));
+  orderBoard.rotation.y = yaw + Math.PI;
+  orderBoard.isPickable = false;
+  orderBoard.material = boardMaterial;
+
+  const updateClientVisuals = (now = performance.now()) => {
+    clientSlots.forEach((slot, index) => {
+      const order = orderQueue[index];
+      const tint = order ? recipeBook[order.type].tint : new BABYLON.Color3(1, 0.76, 0.3);
+      const urgency = order ? getOrderUrgency(order, now) : 0;
+      const pulse =
+        order && urgency > 0.55
+          ? 0.92 + Math.sin(now * 0.016 + index * 1.3) * (0.08 + urgency * 0.08)
+          : 1;
+
+      [slot.body, slot.head, slot.badge].forEach((mesh) => {
+        mesh.setEnabled(Boolean(order));
+        if (mesh.material instanceof BABYLON.StandardMaterial) {
+          const baseEmissive =
+            mesh === slot.badge ? 0.54 + urgency * 0.4 : 0.12 + urgency * 0.16;
+          mesh.material.emissiveColor = tint.scale(baseEmissive * pulse);
+        }
+      });
+
+      slot.body.scaling.y = order ? 1 + urgency * 0.08 : 1;
+      slot.head.scaling = order
+        ? new BABYLON.Vector3(1 + urgency * 0.03, 1 + urgency * 0.03, 1 + urgency * 0.03)
+        : BABYLON.Vector3.One();
+      slot.badge.scaling = order
+        ? new BABYLON.Vector3(
+            1 + urgency * 0.16,
+            1 + urgency * 0.24 + Math.max(0, pulse - 1) * 0.5,
+            1
+          )
+        : BABYLON.Vector3.One();
+    });
+  };
+
+  const boardContext = boardTexture.getContext() as CanvasRenderingContext2D;
+  const updateOrderBoard = (now = performance.now()) => {
+    boardContext.clearRect(0, 0, 1280, 900);
+
+    const gradient = boardContext.createLinearGradient(0, 0, 0, 900);
+    gradient.addColorStop(0, "rgba(10, 16, 28, 0.98)");
+    gradient.addColorStop(1, "rgba(4, 8, 14, 0.98)");
+    boardContext.fillStyle = gradient;
+    boardContext.fillRect(0, 0, 1280, 900);
+
+    boardContext.fillStyle = "rgba(255, 186, 110, 0.14)";
+    boardContext.fillRect(56, 58, 1168, 108);
+    boardContext.strokeStyle = "rgba(255, 186, 110, 0.72)";
+    boardContext.lineWidth = 4;
+    boardContext.strokeRect(56, 58, 1168, 108);
+
+    boardContext.fillStyle = "rgba(255, 214, 166, 0.96)";
+    boardContext.font = "700 46px Segoe UI";
+    boardContext.textAlign = "left";
+    boardContext.textBaseline = "middle";
+    boardContext.fillText("COMMANDES BURGER", 94, 112);
+
+    boardContext.fillStyle = "rgba(221, 235, 255, 0.78)";
+    boardContext.font = "500 24px Segoe UI";
+    boardContext.fillText("Cuisine VR - production, cuisson et service", 94, 150);
+
+    boardContext.textAlign = "right";
+    boardContext.fillStyle = "rgba(127, 231, 203, 0.96)";
+    boardContext.font = "700 42px Segoe UI";
+    boardContext.fillText(`SCORE ${score.toString().padStart(4, "0")}`, 1186, 112);
+
+    boardContext.fillStyle = "rgba(206, 218, 240, 0.88)";
+    boardContext.font = "600 24px Segoe UI";
+    const grillText = grillReady
+      ? "Grill : steak cuit pret"
+      : grillActive
+        ? `Grill : ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
+        : "Grill : libre";
+    boardContext.fillText(grillText, 1186, 148);
+
+    orderQueue.forEach((order, index) => {
+      const x = 76;
+      const y = 216 + index * 272;
+      const width = 1128;
+      const height = 220;
+      const timeLeftMs = getOrderTimeLeftMs(order, now);
+      const urgency = getOrderUrgency(order, now);
+      const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
+      const tint = recipeBook[order.type].tint;
+      const timerColor =
+        timeLeftMs <= VR_COOKING_ORDER_DANGER_TIME * 1000
+          ? "rgba(255, 124, 124, 0.98)"
+          : timeLeftMs <= VR_COOKING_ORDER_WARNING_TIME * 1000
+            ? "rgba(255, 208, 132, 0.98)"
+            : "rgba(127, 231, 203, 0.96)";
+      const cardGradient = boardContext.createLinearGradient(x, y, x + width, y + height);
+      cardGradient.addColorStop(0, `rgba(${Math.round(18 + tint.r * 24)}, ${Math.round(
+        24 + tint.g * 26
+      )}, ${Math.round(32 + tint.b * 24)}, 0.96)`);
+      cardGradient.addColorStop(
+        1,
+        urgency > 0.74 ? "rgba(44, 16, 18, 0.96)" : "rgba(12, 18, 30, 0.92)"
+      );
+
+      boardContext.fillStyle = cardGradient;
+      boardContext.fillRect(x, y, width, height);
+      boardContext.strokeStyle = `rgba(${Math.round(tint.r * 255)}, ${Math.round(
+        tint.g * 255
+      )}, ${Math.round(tint.b * 255)}, 0.72)`;
+      boardContext.lineWidth = 3;
+      boardContext.strokeRect(x, y, width, height);
+
+      boardContext.fillStyle = "rgba(127, 231, 203, 0.92)";
+      boardContext.font = "700 26px Segoe UI";
+      boardContext.textAlign = "left";
+      boardContext.fillText(`CLIENT ${String.fromCharCode(65 + index)}`, x + 26, y + 34);
+
+      boardContext.fillStyle = "rgba(245, 248, 255, 0.98)";
+      boardContext.font = "700 48px Segoe UI";
+      boardContext.fillText(order.title, x + 26, y + 92);
+
+      boardContext.fillStyle = "rgba(196, 210, 234, 0.88)";
+      boardContext.font = "500 28px Segoe UI";
+      order.ingredients.forEach((ingredient, ingredientIndex) => {
+        boardContext.fillText(`- ${ingredient}`, x + 28, y + 142 + ingredientIndex * 34);
+      });
+
+      boardContext.textAlign = "right";
+      boardContext.fillStyle = "rgba(255, 236, 182, 0.96)";
+      boardContext.font = "700 34px Segoe UI";
+      boardContext.fillText(`+${order.reward} pts`, x + width - 28, y + 46);
+
+      boardContext.fillStyle = timerColor;
+      boardContext.font = "700 34px Segoe UI";
+      boardContext.fillText(`${timeLeftSeconds}s`, x + width - 28, y + 92);
+
+      boardContext.fillStyle = "rgba(255, 255, 255, 0.08)";
+      boardContext.fillRect(x + 26, y + height - 26, width - 52, 10);
+      boardContext.fillStyle = timerColor;
+      boardContext.fillRect(
+        x + 26,
+        y + height - 26,
+        (width - 52) * Math.max(0.06, timeLeftMs / order.timeLimitMs),
+        10
+      );
+    });
+
+    boardContext.textAlign = "left";
+    boardContext.fillStyle = "rgba(168, 186, 212, 0.76)";
+    boardContext.font = "500 24px Segoe UI";
+    boardContext.fillText(
+      "Bacs infinis : pain, steak cru, fromage, salade, tomate | clic ou E pour interagir",
+      76,
+      812
+    );
+    boardContext.fillText("Passe par le grill avant le montage puis sers au comptoir.", 76, 850);
+
+    boardTexture.update();
+    orderBoardDirty = false;
+    lastBoardRefreshAt = performance.now();
+    updateClientVisuals(now);
+  };
+
+  const updateCookingHudState = (now: number) => {
+    const nextExpiry = orderQueue.reduce((minTime, order) => {
+      return Math.min(minTime, getOrderTimeLeftMs(order, now));
+    }, Number.POSITIVE_INFINITY);
+    const hasUrgency = Number.isFinite(nextExpiry);
+    const isWarning = hasUrgency && nextExpiry <= VR_COOKING_ORDER_WARNING_TIME * 1000;
+    const isDanger = hasUrgency && nextExpiry <= VR_COOKING_ORDER_DANGER_TIME * 1000;
+    const comboActive = comboStreak > 1 && now < comboExpiresAt;
+    const comboSeconds = Math.max(0, Math.ceil((comboExpiresAt - now) / 1000));
+
+    cookingHud.classList.toggle("urgent", Boolean(isWarning));
+    cookingHud.classList.toggle("danger", Boolean(isDanger));
+    cookingRush.classList.toggle("warning", Boolean(isWarning && !isDanger));
+    cookingRush.classList.toggle("danger", Boolean(isDanger));
+    cookingCombo.classList.toggle("active", comboActive);
+
+    if (!hasUrgency) {
+      cookingRush.textContent = "Cuisine stable";
+    } else if (isDanger) {
+      cookingRush.textContent = `Urgence ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+    } else if (isWarning) {
+      cookingRush.textContent = `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+    } else {
+      cookingRush.textContent = `Prochaine commande ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+    }
+
+    cookingCombo.textContent = comboActive
+      ? `Combo x${comboStreak} · ${comboSeconds}s`
+      : "Combo x1";
+  };
+
+  const applyStationHighlights = (now = performance.now()) => {
+    stations.forEach((station) => {
+      const isFocused = focusedStationId === station.id;
+      const isPriority =
+        (station.id === "grill" && grillReady) ||
+        (station.id === "serve" && inventory.burger !== null);
+      const pulse = 0.92 + Math.sin(now * 0.012 + station.id.length * 0.5) * 0.08;
+      const glowStrength = isFocused ? 1.36 : isPriority ? 0.74 + pulse * 0.32 : 0.52;
+      station.meshes.forEach((mesh) => {
+        if (mesh.material instanceof BABYLON.StandardMaterial) {
+          mesh.material.emissiveColor = station.emissiveColor.scale(glowStrength);
+          mesh.material.alpha = isFocused ? 0.98 : isPriority ? 0.9 + (pulse - 0.92) * 0.28 : 0.84;
+        }
+      });
+    });
+  };
+
+  const binMaterial = createMaterial(
+    scene,
+    `${project.id}_binMat`,
+    new BABYLON.Color3(0.3, 0.24, 0.18),
+    project.color.scale(0.05)
+  );
+  const steelMaterial = createMaterial(
+    scene,
+    `${project.id}_steelMat`,
+    new BABYLON.Color3(0.64, 0.66, 0.68),
+    new BABYLON.Color3(0.02, 0.03, 0.04)
+  );
+  const bunMaterial = createMaterial(
+    scene,
+    `${project.id}_bunMat`,
+    new BABYLON.Color3(0.7, 0.5, 0.24),
+    new BABYLON.Color3(0.06, 0.04, 0.01)
+  );
+  const bunTopMaterial = createMaterial(
+    scene,
+    `${project.id}_bunTopMat`,
+    new BABYLON.Color3(0.86, 0.66, 0.34),
+    new BABYLON.Color3(0.08, 0.05, 0.02)
+  );
+  const rawSteakMaterial = createMaterial(
+    scene,
+    `${project.id}_rawSteakMat`,
+    new BABYLON.Color3(0.52, 0.14, 0.14),
+    new BABYLON.Color3(0.06, 0.01, 0.01)
+  );
+  const cookedSteakMaterial = createMaterial(
+    scene,
+    `${project.id}_cookedSteakMat`,
+    new BABYLON.Color3(0.34, 0.18, 0.08),
+    new BABYLON.Color3(0.08, 0.03, 0.01)
+  );
+  const cheeseMaterial = createMaterial(
+    scene,
+    `${project.id}_cheeseMat`,
+    new BABYLON.Color3(0.96, 0.82, 0.24),
+    new BABYLON.Color3(0.1, 0.08, 0.02)
+  );
+  const lettuceMaterial = createMaterial(
+    scene,
+    `${project.id}_lettuceMat`,
+    new BABYLON.Color3(0.34, 0.76, 0.28),
+    new BABYLON.Color3(0.08, 0.2, 0.04)
+  );
+  const tomatoMaterial = createMaterial(
+    scene,
+    `${project.id}_tomatoMat`,
+    new BABYLON.Color3(0.86, 0.24, 0.18),
+    new BABYLON.Color3(0.1, 0.02, 0.02)
+  );
+  const darkMetalMaterial = createMaterial(
+    scene,
+    `${project.id}_darkMetalMat`,
+    new BABYLON.Color3(0.18, 0.2, 0.22),
+    new BABYLON.Color3(0.01, 0.012, 0.016)
+  );
+
+  const heldRoot = new BABYLON.TransformNode(`${project.id}_heldRoot`, scene);
+  heldRoot.parent = camera;
+  heldRoot.setEnabled(false);
+  heldRoot.scaling = new BABYLON.Vector3(1.28, 1.28, 1.28);
+
+  const heldTray = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_heldTray`,
+    { width: 0.34, height: 0.05, depth: 0.3 },
+    scene
+  );
+  heldTray.parent = heldRoot;
+  heldTray.position = new BABYLON.Vector3(0, -0.08, 0.08);
+  heldTray.isPickable = false;
+  heldTray.material = steelMaterial;
+
+  const heldBunBottom = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldBunBottom`,
+    { diameter: 0.16, height: 0.045, tessellation: 18 },
+    scene
+  );
+  heldBunBottom.parent = heldRoot;
+  heldBunBottom.position = new BABYLON.Vector3(0.06, -0.01, 0.09);
+  heldBunBottom.isPickable = false;
+  heldBunBottom.material = bunMaterial;
+
+  const heldBunTop = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_heldBunTop`,
+    { diameter: 0.165, segments: 12 },
+    scene
+  );
+  heldBunTop.parent = heldRoot;
+  heldBunTop.position = new BABYLON.Vector3(0.06, 0.03, 0.09);
+  heldBunTop.scaling.y = 0.54;
+  heldBunTop.isPickable = false;
+  heldBunTop.material = bunTopMaterial;
+
+  const heldRawSteak = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldRawSteak`,
+    { diameter: 0.15, height: 0.05, tessellation: 18 },
+    scene
+  );
+  heldRawSteak.parent = heldRoot;
+  heldRawSteak.position = new BABYLON.Vector3(-0.08, -0.005, 0.03);
+  heldRawSteak.isPickable = false;
+  heldRawSteak.material = rawSteakMaterial;
+
+  const heldCookedSteak = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldCookedSteak`,
+    { diameter: 0.15, height: 0.05, tessellation: 18 },
+    scene
+  );
+  heldCookedSteak.parent = heldRoot;
+  heldCookedSteak.position = new BABYLON.Vector3(-0.08, -0.005, 0.03);
+  heldCookedSteak.isPickable = false;
+  heldCookedSteak.material = cookedSteakMaterial;
+
+  const heldCheese = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_heldCheese`,
+    { width: 0.13, height: 0.02, depth: 0.13 },
+    scene
+  );
+  heldCheese.parent = heldRoot;
+  heldCheese.position = new BABYLON.Vector3(-0.02, -0.02, 0.11);
+  heldCheese.rotation.y = 0.3;
+  heldCheese.isPickable = false;
+  heldCheese.material = cheeseMaterial;
+
+  const heldLettuce = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_heldLettuce`,
+    { diameter: 0.14, segments: 10 },
+    scene
+  );
+  heldLettuce.parent = heldRoot;
+  heldLettuce.position = new BABYLON.Vector3(0.1, 0, -0.03);
+  heldLettuce.scaling = new BABYLON.Vector3(1.2, 0.4, 0.92);
+  heldLettuce.isPickable = false;
+  heldLettuce.material = lettuceMaterial;
+
+  const heldTomato = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldTomato`,
+    { diameter: 0.12, height: 0.028, tessellation: 18 },
+    scene
+  );
+  heldTomato.parent = heldRoot;
+  heldTomato.position = new BABYLON.Vector3(0.12, -0.005, 0.02);
+  heldTomato.isPickable = false;
+  heldTomato.material = tomatoMaterial;
+
+  const heldBurgerBottom = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldBurgerBottom`,
+    { diameter: 0.18, height: 0.045, tessellation: 18 },
+    scene
+  );
+  heldBurgerBottom.parent = heldRoot;
+  heldBurgerBottom.position = new BABYLON.Vector3(0.02, -0.01, 0.07);
+  heldBurgerBottom.isPickable = false;
+  heldBurgerBottom.material = bunMaterial;
+
+  const heldBurgerPatty = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldBurgerPatty`,
+    { diameter: 0.16, height: 0.05, tessellation: 18 },
+    scene
+  );
+  heldBurgerPatty.parent = heldRoot;
+  heldBurgerPatty.position = new BABYLON.Vector3(0.02, 0.022, 0.07);
+  heldBurgerPatty.isPickable = false;
+  heldBurgerPatty.material = cookedSteakMaterial;
+
+  const heldBurgerCheese = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_heldBurgerCheese`,
+    { width: 0.145, height: 0.016, depth: 0.145 },
+    scene
+  );
+  heldBurgerCheese.parent = heldRoot;
+  heldBurgerCheese.position = new BABYLON.Vector3(0.02, 0.042, 0.07);
+  heldBurgerCheese.rotation.y = 0.24;
+  heldBurgerCheese.isPickable = false;
+  heldBurgerCheese.material = cheeseMaterial;
+
+  const heldBurgerLettuce = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_heldBurgerLettuce`,
+    { diameter: 0.16, segments: 10 },
+    scene
+  );
+  heldBurgerLettuce.parent = heldRoot;
+  heldBurgerLettuce.position = new BABYLON.Vector3(0.02, 0.048, 0.07);
+  heldBurgerLettuce.scaling = new BABYLON.Vector3(1.1, 0.26, 0.88);
+  heldBurgerLettuce.isPickable = false;
+  heldBurgerLettuce.material = lettuceMaterial;
+
+  const heldBurgerTomato = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_heldBurgerTomato`,
+    { diameter: 0.13, height: 0.022, tessellation: 18 },
+    scene
+  );
+  heldBurgerTomato.parent = heldRoot;
+  heldBurgerTomato.position = new BABYLON.Vector3(0.02, 0.056, 0.07);
+  heldBurgerTomato.isPickable = false;
+  heldBurgerTomato.material = tomatoMaterial;
+
+  const heldBurgerTop = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_heldBurgerTop`,
+    { diameter: 0.19, segments: 12 },
+    scene
+  );
+  heldBurgerTop.parent = heldRoot;
+  heldBurgerTop.position = new BABYLON.Vector3(0.02, 0.082, 0.07);
+  heldBurgerTop.scaling.y = 0.56;
+  heldBurgerTop.isPickable = false;
+  heldBurgerTop.material = bunTopMaterial;
+
+  const updateHeldVisuals = (visible: boolean, now: number) => {
+    const hasItem = !isInventoryEmpty();
+    heldRoot.setEnabled(visible && hasItem);
+    if (!visible || !hasItem) {
+      return;
+    }
+
+    heldRoot.position.set(
+      0.46 + Math.sin(now * 0.003) * 0.009,
+      -0.29 + Math.sin(now * 0.006) * 0.007,
+      0.88
+    );
+    heldRoot.rotation.set(0.08, -0.24, -0.08);
+
+    const showLooseItems = inventory.burger === null;
+    heldBunBottom.setEnabled(showLooseItems && inventory.bun);
+    heldBunTop.setEnabled(showLooseItems && inventory.bun);
+    heldRawSteak.setEnabled(showLooseItems && inventory.rawSteak);
+    heldCookedSteak.setEnabled(showLooseItems && inventory.cookedSteak);
+    heldCheese.setEnabled(showLooseItems && inventory.cheese);
+    heldLettuce.setEnabled(showLooseItems && inventory.lettuce);
+    heldTomato.setEnabled(showLooseItems && inventory.tomato);
+
+    const showBurger = inventory.burger !== null;
+    const burgerIngredients = inventory.burger
+      ? recipeBook[inventory.burger].ingredients
+      : [];
+    heldBurgerBottom.setEnabled(showBurger);
+    heldBurgerPatty.setEnabled(showBurger);
+    heldBurgerCheese.setEnabled(showBurger && burgerIngredients.includes("fromage"));
+    heldBurgerLettuce.setEnabled(showBurger && burgerIngredients.includes("salade"));
+    heldBurgerTomato.setEnabled(showBurger && burgerIngredients.includes("tomate"));
+    heldBurgerTop.setEnabled(showBurger);
+  };
+
+  const serviceCounter = createKitchenCounterModule(
+    scene,
+    `${project.id}_serviceCounter`,
+    toWorld(0, 0, -4.45),
+    yaw,
+    3.1,
+    0.92,
+    project.color
+  );
+  serviceCounter.position.y = 0;
+
+  const rearIngredientCounterX = -0.55;
+  const rearIngredientCounterZ = 5.38;
+  const rearIngredientRail = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_rearIngredientRail`,
+    { width: 3.82, height: 0.12, depth: 0.6 },
+    scene
+  );
+  rearIngredientRail.position = toWorld(rearIngredientCounterX, 1.03, rearIngredientCounterZ);
+  rearIngredientRail.rotation.y = yaw;
+  rearIngredientRail.isPickable = false;
+  rearIngredientRail.material = steelMaterial;
+
+  const rearIngredientInset = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_rearIngredientInset`,
+    { width: 3.56, height: 0.02, depth: 0.38 },
+    scene
+  );
+  rearIngredientInset.position = toWorld(rearIngredientCounterX, 1.11, rearIngredientCounterZ);
+  rearIngredientInset.rotation.y = yaw;
+  rearIngredientInset.isPickable = false;
+  rearIngredientInset.material = darkMetalMaterial;
+
+  const rearCounterSplash = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_rearCounterSplash`,
+    { width: 3.82, height: 0.24, depth: 0.06 },
+    scene
+  );
+  rearCounterSplash.position = toWorld(rearIngredientCounterX, 1.16, 5.73);
+  rearCounterSplash.rotation.y = yaw;
+  rearCounterSplash.isPickable = false;
+  rearCounterSplash.material = createMaterial(
+    scene,
+    `${project.id}_rearCounterSplashMat`,
+    new BABYLON.Color3(0.76, 0.76, 0.74),
+    project.color.scale(0.06)
+  );
+
+  const bunBinBody = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_bunBin`,
+    { width: 0.96, height: 0.26, depth: 0.62 },
+    scene
+  );
+  bunBinBody.position = toWorld(2.18, 1.1, 0.08);
+  bunBinBody.rotation.y = yaw;
+  bunBinBody.isPickable = false;
+  bunBinBody.material = binMaterial;
+  const bunHotspot = createHotspot(
+    `${project.id}_bunHotspot`,
+    toWorld(2.18, 1.255, 0.08),
+    0.74,
+    0.42,
+    new BABYLON.Color3(1, 0.78, 0.32)
+  );
+  for (const offset of [
+    new BABYLON.Vector3(-0.22, 0.14, -0.12),
+    new BABYLON.Vector3(0.1, 0.14, 0.02),
+    new BABYLON.Vector3(0.26, 0.14, -0.08),
+  ]) {
+    const bottom = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_bunBottom_${offset.x}_${offset.z}`,
+      { diameter: 0.24, height: 0.08, tessellation: 18 },
+      scene
+    );
+    bottom.position = bunBinBody.position.add(offset);
+    bottom.isPickable = false;
+    bottom.material = bunMaterial;
+
+    const top = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_bunTop_${offset.x}_${offset.z}`,
+      { diameter: 0.25, segments: 14 },
+      scene
+    );
+    top.position = bunBinBody.position.add(offset).add(new BABYLON.Vector3(0, 0.065, 0));
+    top.scaling.y = 0.58;
+    top.isPickable = false;
+    top.material = bunTopMaterial;
+  }
+  registerStation(
+    "bunBin",
+    "Bac a pains",
+    "Prendre un pain burger",
+    bunHotspot,
+    [bunHotspot],
+    new BABYLON.Color3(1, 0.78, 0.32)
+  );
+
+  const steakBinBody = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_steakBin`,
+    { width: 0.98, height: 0.26, depth: 0.64 },
+    scene
+  );
+  steakBinBody.position = toWorld(-1.7, 1.1, rearIngredientCounterZ);
+  steakBinBody.rotation.y = yaw;
+  steakBinBody.isPickable = false;
+  steakBinBody.material = binMaterial;
+  const steakHotspot = createHotspot(
+    `${project.id}_steakHotspot`,
+    toWorld(-1.7, 1.255, rearIngredientCounterZ),
+    0.76,
+    0.44,
+    new BABYLON.Color3(0.96, 0.34, 0.3)
+  );
+  for (const offset of [
+    new BABYLON.Vector3(-0.22, 0.12, -0.08),
+    new BABYLON.Vector3(0.08, 0.12, 0.08),
+    new BABYLON.Vector3(0.24, 0.12, -0.02),
+  ]) {
+    const patty = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_rawPatty_${offset.x}_${offset.z}`,
+      { diameter: 0.25, height: 0.08, tessellation: 20 },
+      scene
+    );
+    patty.position = steakBinBody.position.add(offset);
+    patty.isPickable = false;
+    patty.material = rawSteakMaterial;
+  }
+  registerStation(
+    "steakBin",
+    "Bac a steaks",
+    "Prendre un steak cru",
+    steakHotspot,
+    [steakHotspot],
+    new BABYLON.Color3(0.96, 0.34, 0.3)
+  );
+
+  const cheeseBinBody = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_cheeseBin`,
+    { width: 0.92, height: 0.24, depth: 0.58 },
+    scene
+  );
+  cheeseBinBody.position = toWorld(-0.55, 1.09, rearIngredientCounterZ);
+  cheeseBinBody.rotation.y = yaw;
+  cheeseBinBody.isPickable = false;
+  cheeseBinBody.material = binMaterial;
+  const cheeseHotspot = createHotspot(
+    `${project.id}_cheeseHotspot`,
+    toWorld(-0.55, 1.24, rearIngredientCounterZ),
+    0.72,
+    0.4,
+    new BABYLON.Color3(1, 0.88, 0.28)
+  );
+  for (const offset of [
+    new BABYLON.Vector3(-0.18, 0.12, -0.06),
+    new BABYLON.Vector3(0.02, 0.12, 0.08),
+    new BABYLON.Vector3(0.2, 0.12, -0.04),
+  ]) {
+    const slice = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_cheeseSlice_${offset.x}_${offset.z}`,
+      { width: 0.16, height: 0.025, depth: 0.16 },
+      scene
+    );
+    slice.position = cheeseBinBody.position.add(offset);
+    slice.rotation.y = 0.28 + offset.x;
+    slice.isPickable = false;
+    slice.material = cheeseMaterial;
+  }
+  registerStation(
+    "cheeseBin",
+    "Bac a fromage",
+    "Prendre du fromage",
+    cheeseHotspot,
+    [cheeseHotspot],
+    new BABYLON.Color3(1, 0.88, 0.28)
+  );
+
+  const saladBinBody = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_saladBin`,
+    { width: 0.92, height: 0.26, depth: 0.6 },
+    scene
+  );
+  saladBinBody.position = toWorld(3.88, 1.1, 0.08);
+  saladBinBody.rotation.y = yaw;
+  saladBinBody.isPickable = false;
+  saladBinBody.material = binMaterial;
+  const saladHotspot = createHotspot(
+    `${project.id}_saladHotspot`,
+    toWorld(3.88, 1.255, 0.08),
+    0.72,
+    0.4,
+    new BABYLON.Color3(0.3, 0.95, 0.34)
+  );
+  for (const offset of [
+    new BABYLON.Vector3(-0.22, 0.15, -0.06),
+    new BABYLON.Vector3(0.04, 0.14, 0.02),
+    new BABYLON.Vector3(0.2, 0.16, -0.12),
+    new BABYLON.Vector3(0.1, 0.13, 0.14),
+  ]) {
+    const leaf = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_saladLeaf_${offset.x}_${offset.z}`,
+      { diameter: 0.18, segments: 10 },
+      scene
+    );
+    leaf.position = saladBinBody.position.add(offset);
+    leaf.scaling = new BABYLON.Vector3(1.2, 0.54, 0.92);
+    leaf.isPickable = false;
+    leaf.material = lettuceMaterial;
+  }
+  registerStation(
+    "saladBin",
+    "Bac a salade",
+    "Prendre de la salade",
+    saladHotspot,
+    [saladHotspot],
+    new BABYLON.Color3(0.3, 0.95, 0.34)
+  );
+
+  const tomatoBinBody = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_tomatoBin`,
+    { width: 0.92, height: 0.24, depth: 0.58 },
+    scene
+  );
+  tomatoBinBody.position = toWorld(0.6, 1.09, rearIngredientCounterZ);
+  tomatoBinBody.rotation.y = yaw;
+  tomatoBinBody.isPickable = false;
+  tomatoBinBody.material = binMaterial;
+  const tomatoHotspot = createHotspot(
+    `${project.id}_tomatoHotspot`,
+    toWorld(0.6, 1.24, rearIngredientCounterZ),
+    0.72,
+    0.4,
+    new BABYLON.Color3(0.94, 0.34, 0.28)
+  );
+  for (const offset of [
+    new BABYLON.Vector3(-0.18, 0.12, -0.02),
+    new BABYLON.Vector3(0.04, 0.12, 0.08),
+    new BABYLON.Vector3(0.2, 0.12, -0.08),
+  ]) {
+    const slice = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_tomatoSlice_${offset.x}_${offset.z}`,
+      { diameter: 0.14, height: 0.03, tessellation: 18 },
+      scene
+    );
+    slice.position = tomatoBinBody.position.add(offset);
+    slice.isPickable = false;
+    slice.material = tomatoMaterial;
+  }
+  registerStation(
+    "tomatoBin",
+    "Bac a tomates",
+    "Prendre de la tomate",
+    tomatoHotspot,
+    [tomatoHotspot],
+    new BABYLON.Color3(0.94, 0.34, 0.28)
+  );
+
+  const grillBase = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_grillBase`,
+    { width: 0.92, height: 0.16, depth: 0.7 },
+    scene
+  );
+  grillBase.position = toWorld(3.45, 1.06, 5.48);
+  grillBase.rotation.y = yaw;
+  grillBase.isPickable = false;
+  grillBase.material = steelMaterial;
+  const grillHotspot = createHotspot(
+    `${project.id}_grillHotspot`,
+    toWorld(3.45, 1.16, 5.48),
+    0.78,
+    0.54,
+    new BABYLON.Color3(1, 0.42, 0.18)
+  );
+  const grillGlow = BABYLON.MeshBuilder.CreateDisc(
+    `${project.id}_grillGlow`,
+    { radius: 0.28, tessellation: 28 },
+    scene
+  );
+  grillGlow.position = toWorld(3.45, 1.125, 5.48);
+  grillGlow.rotation.x = Math.PI / 2;
+  grillGlow.isPickable = false;
+  grillGlow.material = createMaterial(
+    scene,
+    `${project.id}_grillGlowMat`,
+    new BABYLON.Color3(0.18, 0.06, 0.02),
+    new BABYLON.Color3(0.32, 0.08, 0.02),
+    0.72
+  );
+  const grillPatty = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_grillPatty`,
+    { diameter: 0.34, height: 0.09, tessellation: 20 },
+    scene
+  );
+  grillPatty.position = toWorld(3.45, 1.16, 5.48);
+  grillPatty.isPickable = false;
+  grillPatty.material = rawSteakMaterial.clone(`${project.id}_grillPattyMat`) ?? rawSteakMaterial;
+  grillPatty.setEnabled(false);
+  registerStation(
+    "grill",
+    "Grill",
+    "Cuire ou recuperer le steak",
+    grillHotspot,
+    [grillHotspot, grillGlow],
+    new BABYLON.Color3(1, 0.42, 0.18)
+  );
+
+  const prepBoard = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_prepBoardGameplay`,
+    { width: 1.08, height: 0.07, depth: 0.58 },
+    scene
+  );
+  prepBoard.position = toWorld(3.05, 1.04, 0.48);
+  prepBoard.rotation.y = yaw;
+  prepBoard.isPickable = false;
+  prepBoard.material = createMaterial(
+    scene,
+    `${project.id}_prepBoardGameplayMat`,
+    new BABYLON.Color3(0.5, 0.32, 0.16),
+    project.color.scale(0.04)
+  );
+  const prepHotspot = createHotspot(
+    `${project.id}_prepHotspot`,
+    toWorld(3.05, 1.105, 0.48),
+    1.02,
+    0.52,
+    new BABYLON.Color3(1, 0.76, 0.32)
+  );
+  registerStation(
+    "prep",
+    "Plan de montage",
+    "Assembler un burger",
+    prepHotspot,
+    [prepHotspot],
+    new BABYLON.Color3(1, 0.76, 0.32)
+  );
+
+  const serveTray = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_serveTray`,
+    { width: 1.4, height: 0.06, depth: 0.62 },
+    scene
+  );
+  serveTray.position = toWorld(0, 1.03, -4.46);
+  serveTray.rotation.y = yaw;
+  serveTray.isPickable = false;
+  serveTray.material = steelMaterial;
+  const serveHotspot = createHotspot(
+    `${project.id}_serveHotspot`,
+    toWorld(0, 1.09, -4.46),
+    1.26,
+    0.48,
+    new BABYLON.Color3(0.34, 0.88, 1)
+  );
+  const serveBell = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_serveBell`,
+    { diameter: 0.22, segments: 12 },
+    scene
+  );
+  serveBell.position = toWorld(0.42, 1.18, -4.46);
+  serveBell.scaling.y = 0.62;
+  serveBell.isPickable = false;
+  serveBell.material = steelMaterial;
+  registerStation(
+    "serve",
+    "Comptoir client",
+    "Servir les clients",
+    serveHotspot,
+    [serveHotspot],
+    new BABYLON.Color3(0.34, 0.88, 1)
+  );
+
+  const trashCan = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_trashCan`,
+    { diameterTop: 0.52, diameterBottom: 0.62, height: 0.86, tessellation: 18 },
+    scene
+  );
+  trashCan.position = toWorld(-5.08, 0.43, -1.18);
+  trashCan.rotation.y = yaw + 0.12;
+  trashCan.isPickable = false;
+  trashCan.material = darkMetalMaterial;
+  trashCan.checkCollisions = true;
+  const trashHotspot = createHotspot(
+    `${project.id}_trashHotspot`,
+    toWorld(-5.08, 0.93, -1.18),
+    0.54,
+    0.54,
+    new BABYLON.Color3(0.9, 0.28, 0.28)
+  );
+  registerStation(
+    "trash",
+    "Poubelle",
+    "Vider le plateau",
+    trashHotspot,
+    [trashHotspot],
+    new BABYLON.Color3(0.9, 0.28, 0.28)
+  );
+
+  for (let index = 0; index < VR_COOKING_ORDER_COUNT; index += 1) {
+    const localX = -0.86 + index * 1.72;
+    const body = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_clientBody_${index}`,
+      { diameter: 0.48, height: 1.1, tessellation: 16 },
+      scene
+    );
+    body.position = toWorld(localX, 0.58, -5.85);
+    body.isPickable = false;
+    body.material = createMaterial(
+      scene,
+      `${project.id}_clientBodyMat_${index}`,
+      new BABYLON.Color3(0.14, 0.16, 0.2),
+      new BABYLON.Color3(0.06, 0.08, 0.12),
+      0.94
+    );
+
+    const head = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_clientHead_${index}`,
+      { diameter: 0.38, segments: 12 },
+      scene
+    );
+    head.position = toWorld(localX, 1.38, -5.85);
+    head.isPickable = false;
+    head.material = createMaterial(
+      scene,
+      `${project.id}_clientHeadMat_${index}`,
+      new BABYLON.Color3(0.2, 0.22, 0.26),
+      new BABYLON.Color3(0.04, 0.06, 0.09),
+      0.96
+    );
+
+    const badge = BABYLON.MeshBuilder.CreatePlane(
+      `${project.id}_clientBadge_${index}`,
+      { width: 0.54, height: 0.2, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+      scene
+    );
+    badge.position = toWorld(localX, 1.9, -5.82);
+    badge.rotation.y = yaw + Math.PI;
+    badge.isPickable = false;
+    badge.material = createMaterial(
+      scene,
+      `${project.id}_clientBadgeMat_${index}`,
+      new BABYLON.Color3(0.16, 0.18, 0.2),
+      new BABYLON.Color3(0.24, 0.26, 0.3),
+      0.88
+    );
+
+    clientSlots.push({ body, head, badge });
+  }
+
+  refillOrders();
+  updateOrderBoard();
+  applyStationHighlights();
+
+  const isPlayerInsideZone = () => {
+    const local = toLocal(camera.position);
+    return (
+      Math.abs(local.x) <= zoneHalfWidth - 0.7 &&
+      local.z >= -zoneHalfDepth + 0.9 &&
+      local.z <= zoneHalfDepth - 0.6
+    );
+  };
+
+  const resolveBurgerType = (): VRCookingOrderType => {
+    const hasCheese = inventory.cheese;
+    const hasSalad = inventory.lettuce;
+    const hasTomato = inventory.tomato;
+
+    if (hasCheese && hasSalad && hasTomato) {
+      return "deluxe";
+    }
+    if (hasCheese && hasSalad) {
+      return "cheeseSalad";
+    }
+    if (hasCheese && hasTomato) {
+      return "cheeseTomato";
+    }
+    if (hasSalad && hasTomato) {
+      return "fresh";
+    }
+    if (hasCheese) {
+      return "cheese";
+    }
+    if (hasSalad) {
+      return "salad";
+    }
+    if (hasTomato) {
+      return "tomato";
+    }
+    return "classic";
+  };
+
+  const getHintForStation = () => {
+    if (!focusedStationId) {
+      return "Vise une station et clique ou appuie sur E pour interagir.";
+    }
+
+    switch (focusedStationId) {
+      case "bunBin":
+        return inventory.burger
+          ? "Burger pret - sers-le d'abord ou vide le plateau."
+          : inventory.bun
+            ? "Tu as deja un pain sur le plateau."
+            : "Clic / E - prendre un pain burger";
+      case "steakBin":
+        return inventory.burger
+          ? "Burger deja monte - impossible de reprendre des ingredients."
+          : inventory.rawSteak || inventory.cookedSteak
+            ? "Tu as deja un steak sur le plateau."
+            : "Clic / E - prendre un steak cru";
+      case "saladBin":
+        return inventory.burger
+          ? "Burger deja monte - sers-le au comptoir."
+          : inventory.lettuce
+            ? "Tu as deja pris de la salade."
+            : "Clic / E - prendre de la salade";
+      case "cheeseBin":
+        return inventory.burger
+          ? "Burger deja monte - sers-le au comptoir."
+          : inventory.cheese
+            ? "Tu as deja pris du fromage."
+            : "Clic / E - prendre du fromage";
+      case "tomatoBin":
+        return inventory.burger
+          ? "Burger deja monte - sers-le au comptoir."
+          : inventory.tomato
+            ? "Tu as deja pris de la tomate."
+            : "Clic / E - prendre de la tomate";
+      case "grill":
+        if (grillReady) {
+          return inventory.rawSteak || inventory.cookedSteak || inventory.burger
+            ? "Libere le plateau pour recuperer le steak cuit."
+            : "Clic / E - recuperer le steak cuit";
+        }
+        if (grillActive) {
+          return `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`;
+        }
+        return inventory.rawSteak
+          ? "Clic / E - lancer la cuisson du steak"
+          : "Prends un steak cru avant le grill.";
+      case "prep":
+        if (inventory.burger) {
+          return "Burger pret - direction le comptoir client.";
+        }
+        if (inventory.bun && inventory.cookedSteak) {
+          return `Clic / E - assembler ${recipeBook[resolveBurgerType()].title.toLowerCase()}`;
+        }
+        return "Assemble pain + steak cuit, puis ajoute fromage, salade ou tomate.";
+      case "serve":
+        return inventory.burger
+          ? "Clic / E - servir la commande en cours"
+          : "Les clients attendent un burger conforme.";
+      case "trash":
+        return isInventoryEmpty() ? "Plateau vide." : "Clic / E - vider le plateau et recommencer";
+      default:
+        return "Vise une station et clique ou appuie sur E pour interagir.";
+    }
+  };
+
+  const interact = () => {
+    if (
+      !isPlayerInsideZone() ||
+      !isPointerLocked ||
+      !projectPanel.classList.contains("hidden") ||
+      isOverviewOpen() ||
+      !focusedStationId
+    ) {
+      return false;
+    }
+
+    switch (focusedStationId) {
+      case "bunBin":
+        if (inventory.burger) {
+          showCookingPopup("Sers ton burger avant de reprendre des ingredients");
+          return true;
+        }
+        if (inventory.bun) {
+          showCookingPopup("Tu as deja un pain");
+          return true;
+        }
+        inventory.bun = true;
+        showCookingPopup("Pain burger recupere");
+        return true;
+      case "steakBin":
+        if (inventory.burger) {
+          showCookingPopup("Impossible : burger deja monte");
+          return true;
+        }
+        if (inventory.rawSteak || inventory.cookedSteak) {
+          showCookingPopup("Tu as deja un steak sur le plateau");
+          return true;
+        }
+        inventory.rawSteak = true;
+        showCookingPopup("Steak cru recupere");
+        return true;
+      case "saladBin":
+        if (inventory.burger) {
+          showCookingPopup("Le burger est deja monte");
+          return true;
+        }
+        if (inventory.lettuce) {
+          showCookingPopup("Tu as deja pris de la salade");
+          return true;
+        }
+        inventory.lettuce = true;
+        showCookingPopup("Salade recuperee");
+        return true;
+      case "cheeseBin":
+        if (inventory.burger) {
+          showCookingPopup("Le burger est deja monte");
+          return true;
+        }
+        if (inventory.cheese) {
+          showCookingPopup("Tu as deja pris du fromage");
+          return true;
+        }
+        inventory.cheese = true;
+        showCookingPopup("Fromage recupere");
+        return true;
+      case "tomatoBin":
+        if (inventory.burger) {
+          showCookingPopup("Le burger est deja monte");
+          return true;
+        }
+        if (inventory.tomato) {
+          showCookingPopup("Tu as deja pris de la tomate");
+          return true;
+        }
+        inventory.tomato = true;
+        showCookingPopup("Tomate recuperee");
+        return true;
+      case "grill":
+        if (grillReady) {
+          if (inventory.rawSteak || inventory.cookedSteak || inventory.burger) {
+            showCookingPopup("Libere ton plateau pour recuperer le steak cuit", "warning");
+            return true;
+          }
+          grillReady = false;
+          grillActive = false;
+          grillProgress = 0;
+          inventory.cookedSteak = true;
+          grillPatty.setEnabled(false);
+          orderBoardDirty = true;
+          showCookingPopup("Steak cuit recupere", "success");
+          return true;
+        }
+        if (grillActive) {
+          showCookingPopup(
+            `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`,
+            "warning"
+          );
+          return true;
+        }
+        if (!inventory.rawSteak) {
+          showCookingPopup("Prends un steak cru avant d'utiliser le grill", "warning");
+          return true;
+        }
+        inventory.rawSteak = false;
+        grillActive = true;
+        grillProgress = 0;
+        grillPatty.setEnabled(true);
+        orderBoardDirty = true;
+        showCookingPopup("Steak en cuisson", "warning");
+        return true;
+      case "prep":
+        if (inventory.burger) {
+          showCookingPopup("Burger deja pret", "warning");
+          return true;
+        }
+        if (!inventory.bun || !inventory.cookedSteak) {
+          showCookingPopup("Il faut un pain et un steak cuit", "warning");
+          return true;
+        }
+        inventory.bun = false;
+        inventory.cookedSteak = false;
+        const burgerType = resolveBurgerType();
+        inventory.burger = burgerType;
+        inventory.cheese = false;
+        inventory.lettuce = false;
+        inventory.tomato = false;
+        showCookingPopup(`${recipeBook[burgerType].title} assemble`, "success");
+        return true;
+      case "serve": {
+        if (!inventory.burger) {
+          showCookingPopup("Aucun burger a servir", "warning");
+          return true;
+        }
+        const orderIndex = orderQueue.findIndex((order) => order.type === inventory.burger);
+        if (orderIndex < 0) {
+          comboStreak = 0;
+          comboExpiresAt = 0;
+          showCookingPopup("Mauvaise commande", "error", 1050);
+          return true;
+        }
+        const now = performance.now();
+        const [servedOrder] = orderQueue.splice(orderIndex, 1);
+        comboStreak = now <= comboExpiresAt ? comboStreak + 1 : 1;
+        comboExpiresAt = now + VR_COOKING_COMBO_WINDOW * 1000;
+        const comboBonus = getComboBonus();
+        const totalReward = servedOrder.reward + comboBonus;
+        score += totalReward;
+        inventory.burger = null;
+        refillOrders(now);
+        orderBoardDirty = true;
+        showCookingPopup(
+          comboBonus > 0
+            ? `Combo x${comboStreak} +${totalReward}`
+            : `Service valide +${totalReward}`,
+          "success",
+          1150
+        );
+        return true;
+      }
+      case "trash":
+        if (isInventoryEmpty()) {
+          showCookingPopup("Plateau deja vide", "warning");
+          return true;
+        }
+        resetInventory();
+        showCookingPopup("Plateau vide", "warning");
+        return true;
+      default:
+        return false;
+    }
+  };
+
+  return {
+    interact,
+    isPlayerInsideZone,
+    update() {
+      const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
+      const now = performance.now();
+
+      if (comboStreak > 0 && now > comboExpiresAt) {
+        comboStreak = 0;
+      }
+
+      const expiredOrders: VRCookingOrder[] = [];
+      for (let index = orderQueue.length - 1; index >= 0; index -= 1) {
+        if (now >= orderQueue[index].expiresAt) {
+          expiredOrders.push(...orderQueue.splice(index, 1));
+        }
+      }
+      if (expiredOrders.length > 0) {
+        score = Math.max(0, score - expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY);
+        comboStreak = 0;
+        comboExpiresAt = 0;
+        refillOrders(now);
+        orderBoardDirty = true;
+        showCookingPopup(
+          expiredOrders.length > 1
+            ? `${expiredOrders.length} commandes perdues -${expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY}`
+            : `Commande perdue -${VR_COOKING_TIMEOUT_PENALTY}`,
+          "error",
+          1200
+        );
+      }
+
+      if (grillActive && !grillReady && dt > 0) {
+        grillProgress = Math.min(1, grillProgress + dt / VR_COOKING_GRILL_TIME);
+        if (grillProgress >= 1) {
+          grillReady = true;
+          orderBoardDirty = true;
+          showCookingPopup("Steak cuit - retourne au grill", "success", 1050);
+        }
+      }
+
+      if (grillGlow.material instanceof BABYLON.StandardMaterial) {
+        const glowPulse = grillReady
+          ? 1.18 + Math.sin(now * 0.01) * 0.12
+          : grillActive
+            ? 0.78 + grillProgress * 0.64
+            : 0.18;
+        grillGlow.material.emissiveColor = new BABYLON.Color3(
+          0.42 * glowPulse,
+          0.12 * glowPulse,
+          0.04 * glowPulse
+        );
+        grillGlow.material.alpha = grillReady ? 0.88 : grillActive ? 0.68 : 0.28;
+      }
+
+      if (grillPatty.material instanceof BABYLON.StandardMaterial) {
+        grillPatty.material.diffuseColor = (grillReady ? cookedSteakMaterial : rawSteakMaterial).diffuseColor.clone();
+        grillPatty.material.emissiveColor = (grillReady ? cookedSteakMaterial : rawSteakMaterial).emissiveColor.clone();
+      }
+      if (grillPatty.isEnabled()) {
+        grillPatty.position.y = 1.16 + Math.sin(now * 0.008) * 0.012;
+      }
+
+      if (
+        orderBoardDirty ||
+        (grillActive && now - lastBoardRefreshAt > 160) ||
+        (orderQueue.length > 0 && now - lastBoardRefreshAt > 180)
+      ) {
+        updateOrderBoard(now);
+      }
+
+      if (cookingPopup.classList.contains("visible") && now >= cookingPopupHideAt) {
+        cookingPopup.classList.remove("visible");
+      }
+
+      const visible =
+        isPlayerInsideZone() &&
+        projectPanel.classList.contains("hidden") &&
+        !isOverviewOpen();
+      cookingHud.classList.toggle("hidden", !visible);
+      updateHeldVisuals(visible && isPointerLocked, now);
+
+      if (visible && isPointerLocked) {
+        const pick = scene.pickWithRay(
+          camera.getForwardRay(VR_COOKING_INTERACTION_DISTANCE),
+          (mesh) =>
+            Boolean((mesh.metadata as { vrCookingStationId?: VRCookingStationType } | undefined)?.vrCookingStationId)
+        );
+        focusedStationId =
+          pick?.hit && (pick.distance ?? Number.POSITIVE_INFINITY) <= VR_COOKING_INTERACTION_DISTANCE
+            ? (pick.pickedMesh?.metadata as { vrCookingStationId?: VRCookingStationType } | undefined)?.vrCookingStationId ?? null
+            : null;
+      } else {
+        focusedStationId = null;
+      }
+
+      applyStationHighlights(now);
+
+      if (visible) {
+        cookingScore.textContent = score.toString().padStart(4, "0");
+        updateCookingHudState(now);
+        cookingHeld.textContent = getHeldLabel();
+        cookingHint.textContent = getHintForStation();
+      } else {
+        cookingHud.classList.remove("urgent", "danger");
+        cookingRush.classList.remove("warning", "danger");
+        cookingCombo.classList.remove("active");
+      }
+    },
+  };
+}
+
 function createProjectTrailerBillboard(
   scene: BABYLON.Scene,
   project: ProjectData,
   position: BABYLON.Vector3,
   rotationY: number
 ) {
+  const descriptorLine =
+    project.id === "survivorSlime"
+      ? "FPS roguelike | Merge system | Horde combat"
+      : project.id === "vrCooking"
+        ? "VR cooking | Burger rush | Coop interactions"
+        : `${project.engine} | ${project.focus}`;
+  const trailerNote =
+    project.id === "vrCooking"
+      ? "Placeholder en attendant l'integration d'une capture de gameplay cuisine / service."
+      : "Placeholder en attendant l'integration de la vraie video trailer.";
   const root = new BABYLON.TransformNode(`${project.id}_trailerBillboardRoot`, scene);
   root.position = position.add(new BABYLON.Vector3(0, 3.34, 0));
   root.rotation.y = rotationY;
@@ -673,7 +2695,7 @@ function createProjectTrailerBillboard(
 
   context.fillStyle = "rgba(185, 208, 255, 0.82)";
   context.font = "400 42px Segoe UI";
-  context.fillText("FPS roguelike | Merge system | Horde combat", 142, 402);
+  context.fillText(descriptorLine, 142, 402);
 
   context.fillStyle = "rgba(52, 255, 182, 0.18)";
   context.beginPath();
@@ -700,7 +2722,7 @@ function createProjectTrailerBillboard(
 
   context.fillStyle = "rgba(214, 226, 255, 0.72)";
   context.font = "400 28px Segoe UI";
-  context.fillText("Placeholder en attendant l'integration de la vraie video trailer.", 432, 726);
+  context.fillText(trailerNote, 258, 726);
   screenTexture.update();
 
   const screenMaterial = new BABYLON.StandardMaterial(
@@ -1783,19 +3805,199 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
   }
 
   if (project.id === "vrCooking") {
-    const table = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_table`,
-      { width: 2.8, height: 0.18, depth: 1.4 },
+    const kitchenRear = project.position.add(back.scale(5.5));
+    const leftRun = project.position.add(right.scale(-5.55)).add(back.scale(1.25));
+    const islandCenter = project.position.add(right.scale(3.05)).add(back.scale(0.35));
+    const rearPrepCounterCenter = kitchenRear.add(right.scale(-0.55));
+
+    const prepCounter = createKitchenCounterModule(
+      scene,
+      `${project.id}_prepCounter`,
+      rearPrepCounterCenter,
+      yaw,
+      4.7,
+      1.0,
+      project.color
+    );
+    const stoveCounter = createKitchenCounterModule(
+      scene,
+      `${project.id}_stoveCounter`,
+      kitchenRear.add(right.scale(3.45)),
+      yaw,
+      2.5,
+      1.0,
+      project.color
+    );
+    createKitchenCounterModule(
+      scene,
+      `${project.id}_sideCounter`,
+      leftRun,
+      yaw + Math.PI / 2,
+      3.4,
+      1.0,
+      project.color
+    );
+    const island = createKitchenCounterModule(
+      scene,
+      `${project.id}_island`,
+      islandCenter,
+      yaw,
+      2.8,
+      1.22,
+      project.color
+    );
+
+    createKitchenTallUnit(
+      scene,
+      `${project.id}_fridge`,
+      kitchenRear.add(right.scale(5.55)),
+      yaw,
+      1.28,
+      1.04,
+      2.5,
+      project.color
+    );
+    createKitchenTallUnit(
+      scene,
+      `${project.id}_pantry`,
+      project.position.add(right.scale(-5.55)).add(back.scale(5.25)),
+      yaw + Math.PI / 2,
+      1.18,
+      0.96,
+      2.5,
+      project.color
+    );
+
+    const sinkBasin = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_sinkBasin`,
+      { width: 1.08, height: 0.16, depth: 0.54 },
       scene
     );
-    table.position = front.add(back.scale(0.7)).add(right.scale(2.2)).add(new BABYLON.Vector3(0, 0.9, 0));
-    table.rotation.y = yaw;
-    table.isPickable = false;
-    table.material = createMaterial(scene, `${project.id}_tableMat`, new BABYLON.Color3(0.18, 0.12, 0.08), project.color.scale(0.18));
+    sinkBasin.parent = prepCounter;
+    sinkBasin.position = new BABYLON.Vector3(-1.34, 0.9, -0.02);
+    sinkBasin.isPickable = false;
+    sinkBasin.material = createMaterial(
+      scene,
+      `${project.id}_sinkBasinMat`,
+      new BABYLON.Color3(0.68, 0.72, 0.76),
+      new BABYLON.Color3(0.02, 0.024, 0.03)
+    );
 
-    createDecorColumn(scene, `${project.id}_potA`, table.position.add(right.scale(-0.7)).add(new BABYLON.Vector3(0, 0.32, 0)), project.color, 0.38, 0.32);
-    createDecorColumn(scene, `${project.id}_potB`, table.position.add(right.scale(0.6)).add(new BABYLON.Vector3(0, 0.28, 0)), project.color, 0.32, 0.26);
-    createDecorScreen(scene, `${project.id}_recipe`, rear.add(right.scale(-2.1)).add(new BABYLON.Vector3(0, 2.1, 0)), yaw + Math.PI, project.color, 1.3, 1.0);
+    const faucet = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_faucet`,
+      { diameter: 0.06, height: 0.46, tessellation: 12 },
+      scene
+    );
+    faucet.parent = prepCounter;
+    faucet.position = new BABYLON.Vector3(-1.02, 1.18, 0);
+    faucet.isPickable = false;
+    faucet.material = createMaterial(
+      scene,
+      `${project.id}_faucetMat`,
+      new BABYLON.Color3(0.2, 0.22, 0.24),
+      new BABYLON.Color3(0.01, 0.012, 0.014)
+    );
+    enableCollisions(sinkBasin, faucet);
+
+    const board = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_cuttingBoard`,
+      { width: 0.72, height: 0.06, depth: 0.44 },
+      scene
+    );
+    board.parent = island;
+    board.position = new BABYLON.Vector3(-0.56, 0.99, -0.06);
+    board.isPickable = false;
+    board.material = createMaterial(
+      scene,
+      `${project.id}_boardMat`,
+      new BABYLON.Color3(0.54, 0.34, 0.18),
+      project.color.scale(0.06)
+    );
+
+    const pot = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_pot`,
+      { diameter: 0.42, height: 0.28, tessellation: 20 },
+      scene
+    );
+    pot.parent = island;
+    pot.position = new BABYLON.Vector3(0.58, 1.1, 0.08);
+    pot.isPickable = false;
+    pot.material = createMaterial(
+      scene,
+      `${project.id}_potMat`,
+      new BABYLON.Color3(0.16, 0.18, 0.2),
+      project.color.scale(0.08)
+    );
+    enableCollisions(board, pot);
+
+    for (const burner of [
+      new BABYLON.Vector3(-0.38, 0.99, -0.18),
+      new BABYLON.Vector3(0.38, 0.99, -0.18),
+      new BABYLON.Vector3(-0.38, 0.99, 0.18),
+      new BABYLON.Vector3(0.38, 0.99, 0.18),
+    ]) {
+      const plate = BABYLON.MeshBuilder.CreateDisc(
+        `${project.id}_burner_${burner.x}_${burner.z}`,
+        { radius: 0.16, tessellation: 24 },
+        scene
+      );
+      plate.parent = stoveCounter;
+      plate.position = burner;
+      plate.rotation.x = Math.PI / 2;
+      plate.isPickable = false;
+      plate.material = createMaterial(
+        scene,
+        `${project.id}_burnerMat_${burner.x}_${burner.z}`,
+        new BABYLON.Color3(0.06, 0.06, 0.07),
+        project.color.scale(0.18),
+        0.94
+      );
+    }
+
+    const hood = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_hood`,
+      { width: 1.8, height: 0.34, depth: 0.9 },
+      scene
+    );
+    hood.position = kitchenRear.add(right.scale(3.45)).add(new BABYLON.Vector3(0, 2.5, -0.12));
+    hood.rotation.y = yaw;
+    hood.isPickable = false;
+    hood.material = createMaterial(
+      scene,
+      `${project.id}_hoodMat`,
+      new BABYLON.Color3(0.66, 0.68, 0.7),
+      project.color.scale(0.08)
+    );
+    hood.checkCollisions = true;
+
+    const shelfUpper = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_shelfUpper`,
+      { width: 2.4, height: 0.12, depth: 0.34 },
+      scene
+    );
+    shelfUpper.position = leftRun.add(back.scale(2.3)).add(new BABYLON.Vector3(0, 2.18, 0));
+    shelfUpper.rotation.y = yaw + Math.PI / 2;
+    shelfUpper.isPickable = false;
+    shelfUpper.material = createMaterial(
+      scene,
+      `${project.id}_shelfMat`,
+      new BABYLON.Color3(0.34, 0.24, 0.14),
+      project.color.scale(0.08)
+    );
+    shelfUpper.checkCollisions = true;
+
+    const shelfLower = shelfUpper.clone(`${project.id}_shelfLower`);
+    shelfLower.position.y = 1.72;
+    shelfLower.checkCollisions = true;
+
+    const warmBounce = new BABYLON.PointLight(
+      `${project.id}_warmBounce`,
+      islandCenter.add(new BABYLON.Vector3(0, 1.6, 0)),
+      scene
+    );
+    warmBounce.diffuse = new BABYLON.Color3(1, 0.78, 0.48);
+    warmBounce.intensity = 0.32;
+    warmBounce.range = 10;
   }
 
   if (project.id === "drivingSim") {
@@ -3043,9 +5245,16 @@ function createDesertTerrain(scene: BABYLON.Scene, project: ProjectData) {
 function createProjectRoom(scene: BABYLON.Scene, project: ProjectData) {
   const { back, right, inward, yaw } = getRoomBasis(project);
   const isSlime = project.id === "survivorSlime";
+  const isCooking = project.id === "vrCooking";
 
   if (isSlime) {
     createDesertTerrain(scene, project);
+    addRoomTheme(scene, project);
+    return;
+  }
+
+  if (isCooking) {
+    createVrCookingZone(scene, project);
     addRoomTheme(scene, project);
     return;
   }
@@ -3150,7 +5359,9 @@ function createProjectLabel(
   project: ProjectData,
   root?: BABYLON.TransformNode
 ) {
-  const { inward, yaw } = getRoomBasis(project);
+  const { inward, right, yaw } = getRoomBasis(project);
+  const isEntrancePanel =
+    project.id === "survivorSlime" || project.id === "vrCooking";
   const labelTexture = new BABYLON.DynamicTexture(
     `${project.id}_labelTexture`,
     { width: 1024, height: 256 },
@@ -3189,10 +5400,17 @@ function createProjectLabel(
     { width: 5.4, height: 1.45, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
     scene
   );
-  if (project.id === "survivorSlime") {
+  if (isEntrancePanel) {
+    const entranceOffset =
+      project.id === "survivorSlime"
+        ? 15.82
+        : VR_COOKING_ZONE_DEPTH * 0.5 + 0.4;
+    const entranceHeight = project.id === "survivorSlime" ? 3.12 : 3.78;
+    const entranceLateralOffset = project.id === "vrCooking" ? 1 : 0;
     label.position = project.position
-      .add(inward.scale(15.82))
-      .add(new BABYLON.Vector3(0, 3.12, 0));
+      .add(inward.scale(entranceOffset))
+      .add(right.scale(entranceLateralOffset))
+      .add(new BABYLON.Vector3(0, entranceHeight, 0));
     label.rotation.y = yaw + Math.PI;
     label.isPickable = true;
     label.metadata = {
@@ -3486,7 +5704,7 @@ function lookAtTarget(camera: BABYLON.UniversalCamera, target: BABYLON.Vector3) 
   camera.rotation.x = -Math.atan2(direction.y, distanceXZ);
 }
 
-function getGroundDistance(scene: BABYLON.Scene, origin: BABYLON.Vector3) {
+function getGroundProbe(scene: BABYLON.Scene, origin: BABYLON.Vector3) {
   const rayOffset = 0.1;
   const ray = new BABYLON.Ray(
     origin.add(new BABYLON.Vector3(0, rayOffset, 0)),
@@ -3502,7 +5720,10 @@ function getGroundDistance(scene: BABYLON.Scene, origin: BABYLON.Vector3) {
     return null;
   }
 
-  return Math.max(0, groundHit.distance - rayOffset);
+  return {
+    distance: Math.max(0, groundHit.distance - rayOffset),
+    point: groundHit.pickedPoint?.clone() ?? null,
+  };
 }
 
 function createPlayerController(
@@ -3617,9 +5838,11 @@ function createPlayerController(
         inputDirection.normalize();
       }
 
-      const groundDistanceBeforeMove = getGroundDistance(scene, state.bodyPosition);
+      const groundProbeBeforeMove = getGroundProbe(scene, state.bodyPosition);
+      const groundDistanceBeforeMove = groundProbeBeforeMove?.distance ?? null;
       const groundedBeforeMove =
         groundDistanceBeforeMove !== null &&
+        state.verticalVelocity <= 0 &&
         groundDistanceBeforeMove <= PLAYER_HEIGHT + GROUND_CONTACT_EPSILON;
 
       if (groundedBeforeMove) {
@@ -3689,11 +5912,18 @@ function createPlayerController(
 
       const fallSpeed = state.verticalVelocity;
       const wasGrounded = state.isGrounded;
-      const groundDistanceAfterMove = getGroundDistance(scene, state.bodyPosition);
+      const groundProbeAfterMove = getGroundProbe(scene, state.bodyPosition);
+      const groundDistanceAfterMove = groundProbeAfterMove?.distance ?? null;
 
       state.isGrounded =
         groundDistanceAfterMove !== null &&
+        state.verticalVelocity <= 0 &&
         groundDistanceAfterMove <= PLAYER_HEIGHT + GROUND_CONTACT_EPSILON;
+
+      if (state.isGrounded && groundProbeAfterMove?.point) {
+        state.bodyPosition.y = groundProbeAfterMove.point.y + PLAYER_HEIGHT;
+        camera.position.y = state.bodyPosition.y;
+      }
 
       if (state.isGrounded && !wasGrounded && fallSpeed < -6) {
         state.landingVelocity -= Math.min(
@@ -3908,7 +6138,7 @@ function createScene() {
 
   projects.forEach((project) => {
     createProjectRoom(scene, project);
-    if (project.id === "survivorSlime") {
+    if (project.id === "survivorSlime" || project.id === "vrCooking") {
       createProjectLabel(scene, project);
       return;
     }
@@ -3917,6 +6147,7 @@ function createScene() {
   });
 
   const slimeProject = projects.find((project) => project.id === "survivorSlime");
+  const vrCookingProject = projects.find((project) => project.id === "vrCooking");
   if (slimeProject) {
     applyWetLookToSlimeZone(scene, slimeProject);
   }
@@ -3932,6 +6163,9 @@ function createScene() {
     slimeProject && slimeEnemySystem
       ? createSlimeWeaponSystem(scene, camera, slimeProject, slimeEnemySystem)
       : null;
+  const vrCookingSystem = vrCookingProject
+    ? createVRCookingSystem(scene, vrCookingProject, camera)
+    : null;
 
   function setHoveredProject(
     projectId: string | null,
@@ -4000,6 +6234,10 @@ function createScene() {
     }
 
     if (event.button === 0 && isPointerLocked) {
+      if (!hoveredProjectId && vrCookingSystem?.interact()) {
+        return;
+      }
+
       const shot = slimeWeaponSystem?.tryShoot();
       if (shot?.scoreDelta) {
         showCombatPopup(`+${shot.scoreDelta}`);
@@ -4027,7 +6265,10 @@ function createScene() {
       } else {
         focusProject(hoveredProjectId, true);
       }
+      return;
     }
+
+    vrCookingSystem?.interact();
   });
 
   scene.onPointerObservable.add((pointerInfo) => {
@@ -4063,6 +6304,8 @@ function createScene() {
     crosshair.classList.toggle("hit", Boolean(crosshairState?.hit));
 
     isInSlimeCombatZone = slimeEnemySystem?.isPlayerInsideArena() ?? false;
+    isInVRCookingZone = vrCookingSystem?.isPlayerInsideZone() ?? false;
+    vrCookingSystem?.update();
     const showCombatHud =
       isInSlimeCombatZone && projectPanel.classList.contains("hidden");
     combatHud.classList.toggle("hidden", !showCombatHud);
