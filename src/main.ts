@@ -2129,7 +2129,7 @@ function createVRCookingSystem(
   const entranceBarrier = createZoneLockBarrier(
     scene,
     `${project.id}_lockBarrier`,
-    toWorld(0, 1.34, -zoneHalfDepth + 0.28),
+    toWorld(0, 1.34, -zoneHalfDepth + 1.72),
     yaw,
     { width: 4.96, height: 2.68, depth: 0.28 },
     project.color,
@@ -7343,7 +7343,7 @@ function createSlimeEnemySystem(
   const entranceBarrier = createZoneLockBarrier(
     scene,
     `${project.id}_lockBarrier`,
-    toWorld(0, 1.42, -SLIME_ARENA_HALF_SIZE + 0.34),
+    toWorld(0, 1.42, -SLIME_ARENA_HALF_SIZE + 1.98),
     yaw,
     { width: 6.1, height: 2.84, depth: 0.32 },
     project.color,
