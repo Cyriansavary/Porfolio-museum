@@ -11,7 +11,12 @@
     <div id="ui">
       <header id="topbar">
         <div class="topbar-left">
-          <button id="languageToggle" class="lang-toggle" type="button">FR</button>
+          <div class="topbar-tools">
+            <button id="languageToggle" class="lang-toggle" type="button">FR</button>
+            <button id="leaderboardTrigger" class="ghost-button leaderboard-button" type="button">
+              Leaderboard
+            </button>
+          </div>
           <div class="brand-block">
             <p id="brandEyebrow" class="eyebrow">Gameplay Programmer Portfolio</p>
             <h1>Cyrian Savary</h1>
@@ -28,9 +33,6 @@
 
         <div class="topbar-actions">
           <div id="testerSummary" class="status-pill tester-summary">Aucun testeur actif</div>
-          <button id="leaderboardTrigger" class="ghost-button" type="button">
-            Leaderboard
-          </button>
           <div id="statusPill" class="status-pill">Clique dans la scene pour entrer en mode visite.</div>
           <button id="closePanel" class="ghost-button hidden">Masquer la fiche</button>
         </div>
