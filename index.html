@@ -27,6 +27,10 @@
         </button>
 
         <div class="topbar-actions">
+          <div id="testerSummary" class="status-pill tester-summary">Aucun testeur actif</div>
+          <button id="leaderboardTrigger" class="ghost-button" type="button">
+            Leaderboard
+          </button>
           <div id="statusPill" class="status-pill">Clique dans la scene pour entrer en mode visite.</div>
           <button id="closePanel" class="ghost-button hidden">Masquer la fiche</button>
         </div>
@@ -136,6 +140,64 @@
           </div>
 
           <div id="overviewList" class="overview-list"></div>
+        </div>
+      </section>
+
+      <section id="leaderboardPanel" class="overview hidden" aria-live="polite">
+        <div class="overview-shell leaderboard-shell">
+          <div class="overview-header">
+            <div>
+              <p id="leaderboardEyebrow" class="eyebrow">Leaderboard partage</p>
+              <h2 id="leaderboardTitle">Scores des testeurs</h2>
+              <p id="leaderboardBody">
+                Choisis un nom de testeur pour cumuler les points des mini-jeux
+                sur ce navigateur.
+              </p>
+            </div>
+            <button id="closeLeaderboard" class="ghost-button" type="button">
+              Fermer
+            </button>
+          </div>
+
+          <div class="leaderboard-content">
+            <div class="leaderboard-toolbar">
+              <div class="leaderboard-current">
+                <p id="leaderboardCurrentEyebrow" class="eyebrow">
+                  Testeur actif
+                </p>
+                <strong id="leaderboardCurrentName">Aucun testeur</strong>
+                <span id="leaderboardCurrentTotal">0 pts</span>
+              </div>
+
+              <div class="leaderboard-form">
+                <label id="testerNameLabel" for="testerNameInput">
+                  Nom du testeur
+                </label>
+                <div class="leaderboard-form-row">
+                  <input
+                    id="testerNameInput"
+                    type="text"
+                    maxlength="24"
+                    autocomplete="off"
+                    placeholder="Entre un nom"
+                  />
+                  <button id="saveTesterBtn" class="ghost-button" type="button">
+                    Activer
+                  </button>
+                </div>
+                <p id="leaderboardHint" class="leaderboard-hint">
+                  Le score cumule Survivor Slime et VR Cooking.
+                </p>
+              </div>
+            </div>
+
+            <div class="leaderboard-list-wrap">
+              <div class="leaderboard-list-head">
+                <p id="leaderboardListEyebrow" class="eyebrow">Classement global</p>
+              </div>
+              <div id="leaderboardList" class="leaderboard-list"></div>
+            </div>
+          </div>
         </div>
       </section>
 

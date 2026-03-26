@@ -197,6 +197,17 @@ type DrivingSimSystem = {
   getSpeedKph: () => number;
 };
 
+type LeaderboardCategory = "slime" | "cooking";
+
+type LeaderboardEntry = {
+  id: string;
+  name: string;
+  totalScore: number;
+  slimeScore: number;
+  cookingScore: number;
+  lastPlayedAt: number;
+};
+
 type AppLanguage = "fr" | "en";
 
 type ProjectTextContent = {
@@ -490,6 +501,8 @@ const projectTextByLanguage: Record<AppLanguage, Record<string, ProjectTextConte
 };
 
 const LANGUAGE_STORAGE_KEY = "portfolio-museum-language";
+const LEADERBOARD_STORAGE_KEY = "portfolio-museum-leaderboard";
+const CURRENT_TESTER_STORAGE_KEY = "portfolio-museum-current-tester";
 
 const uiText = {
   fr: {
@@ -499,6 +512,7 @@ const uiText = {
     introCopy:
       "Portfolio interactif consacre a la programmation gameplay, aux systemes temps reel et a la mise en scene de projets techniques.",
     overviewTrigger: "Pas le temps pour jouer ? Clique ici",
+    leaderboardTrigger: "Leaderboard",
     closePanel: "Masquer la fiche",
     heroEyebrow: "Hall central",
     heroTitle: "Visite libre en vue FPS.",
@@ -532,6 +546,28 @@ const uiText = {
     overviewBody:
       "Une lecture rapide du portfolio si tu n'as pas le temps de faire la visite interactive.",
     closeOverview: "Fermer",
+    leaderboardEyebrow: "Leaderboard partage",
+    leaderboardTitle: "Scores des testeurs",
+    leaderboardBody:
+      "Choisis un nom de testeur pour cumuler les points de Survivor Slime et VR Cooking et partager le score avec les autres visiteurs.",
+    closeLeaderboard: "Fermer",
+    leaderboardCurrentEyebrow: "Testeur actif",
+    leaderboardCurrentEmpty: "Aucun testeur",
+    leaderboardCurrentTotal: "Total cumule",
+    leaderboardNameLabel: "Nom du testeur",
+    leaderboardNamePlaceholder: "Entre un nom",
+    leaderboardSave: "Activer",
+    leaderboardHint:
+      "Le score cumule les points de combat et de cuisine. Les donnees sont synchronisees avec le site.",
+    leaderboardListEyebrow: "Classement global",
+    leaderboardEmpty:
+      "Aucun score enregistre pour l'instant. Cree un testeur puis lance un mini-jeu pour alimenter le classement.",
+    leaderboardMetricTotal: "Total",
+    leaderboardMetricSlime: "Slime",
+    leaderboardMetricCooking: "Cooking",
+    leaderboardMetricUpdated: "Derniere activite",
+    testerSummaryEmpty: "Aucun testeur actif",
+    testerSummaryLabel: "Testeur",
     hintCapture: "Clic scene pour capturer la souris",
     hintMove: "ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter",
     hintOpen: "E pour ouvrir, Echap pour liberer",
@@ -543,6 +579,7 @@ const uiText = {
     introCopy:
       "Interactive portfolio dedicated to gameplay programming, real-time systems and the staging of technical projects.",
     overviewTrigger: "No time to play? Click here",
+    leaderboardTrigger: "Leaderboard",
     closePanel: "Hide project sheet",
     heroEyebrow: "Central hall",
     heroTitle: "Free-roam FPS visit.",
@@ -576,6 +613,28 @@ const uiText = {
     overviewBody:
       "A quick read-through of the portfolio if you do not have time for the interactive visit.",
     closeOverview: "Close",
+    leaderboardEyebrow: "Shared leaderboard",
+    leaderboardTitle: "Tester scores",
+    leaderboardBody:
+      "Pick a tester name to accumulate Survivor Slime and VR Cooking points and share the score with other visitors.",
+    closeLeaderboard: "Close",
+    leaderboardCurrentEyebrow: "Active tester",
+    leaderboardCurrentEmpty: "No tester selected",
+    leaderboardCurrentTotal: "Total score",
+    leaderboardNameLabel: "Tester name",
+    leaderboardNamePlaceholder: "Enter a name",
+    leaderboardSave: "Activate",
+    leaderboardHint:
+      "The score combines combat and cooking points. Data is synced with the website.",
+    leaderboardListEyebrow: "Global ranking",
+    leaderboardEmpty:
+      "No score recorded yet. Create a tester and launch a mini-game to feed the ranking.",
+    leaderboardMetricTotal: "Total",
+    leaderboardMetricSlime: "Slime",
+    leaderboardMetricCooking: "Cooking",
+    leaderboardMetricUpdated: "Last activity",
+    testerSummaryEmpty: "No active tester",
+    testerSummaryLabel: "Tester",
     hintCapture: "Click scene to capture the mouse",
     hintMove: "ZQSD / WASD to move, Shift to sprint, Space to jump",
     hintOpen: "E to open, Escape to release",
@@ -603,12 +662,36 @@ const projectPanel = document.getElementById("projectPanel") as HTMLDivElement;
 const projectPanelBody = projectPanel.querySelector(".panel-body") as HTMLDivElement;
 const closePanelBtn = document.getElementById("closePanel") as HTMLButtonElement;
 const overviewTrigger = document.getElementById("overviewTrigger") as HTMLButtonElement;
+const leaderboardTrigger = document.getElementById("leaderboardTrigger") as HTMLButtonElement;
 const projectsOverview = document.getElementById("projectsOverview") as HTMLDivElement;
 const closeOverviewBtn = document.getElementById("closeOverview") as HTMLButtonElement;
 const overviewEyebrow = document.getElementById("overviewEyebrow") as HTMLParagraphElement;
 const overviewTitle = document.getElementById("overviewTitle") as HTMLHeadingElement;
 const overviewBody = document.getElementById("overviewBody") as HTMLParagraphElement;
 const overviewList = document.getElementById("overviewList") as HTMLDivElement;
+const leaderboardPanel = document.getElementById("leaderboardPanel") as HTMLDivElement;
+const closeLeaderboardBtn = document.getElementById("closeLeaderboard") as HTMLButtonElement;
+const leaderboardEyebrow = document.getElementById("leaderboardEyebrow") as HTMLParagraphElement;
+const leaderboardTitle = document.getElementById("leaderboardTitle") as HTMLHeadingElement;
+const leaderboardBody = document.getElementById("leaderboardBody") as HTMLParagraphElement;
+const leaderboardCurrentEyebrow = document.getElementById(
+  "leaderboardCurrentEyebrow"
+) as HTMLParagraphElement;
+const leaderboardCurrentName = document.getElementById(
+  "leaderboardCurrentName"
+) as HTMLSpanElement;
+const leaderboardCurrentTotal = document.getElementById(
+  "leaderboardCurrentTotal"
+) as HTMLSpanElement;
+const testerNameLabel = document.getElementById("testerNameLabel") as HTMLLabelElement;
+const testerNameInput = document.getElementById("testerNameInput") as HTMLInputElement;
+const saveTesterBtn = document.getElementById("saveTesterBtn") as HTMLButtonElement;
+const leaderboardHint = document.getElementById("leaderboardHint") as HTMLParagraphElement;
+const leaderboardListEyebrow = document.getElementById(
+  "leaderboardListEyebrow"
+) as HTMLParagraphElement;
+const leaderboardList = document.getElementById("leaderboardList") as HTMLDivElement;
+const testerSummary = document.getElementById("testerSummary") as HTMLDivElement;
 const crosshair = document.getElementById("crosshair") as HTMLDivElement;
 const statusPill = document.getElementById("statusPill") as HTMLDivElement;
 const combatScore = document.getElementById("combatScore") as HTMLSpanElement;
@@ -674,6 +757,8 @@ let combatPopupHideAt = 0;
 let cookingPopupHideAt = 0;
 let currentLanguage: AppLanguage =
   localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "fr";
+let testerLeaderboard = loadLeaderboardEntries();
+let currentTesterId = loadCurrentTesterId(testerLeaderboard);
 
 function rgbString(color: BABYLON.Color3) {
   return `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
@@ -687,12 +772,400 @@ function moveToward(current: number, target: number, maxDelta: number) {
   return current + Math.sign(target - current) * maxDelta;
 }
 
+function normalizeTesterName(value: string) {
+  return value.replace(/\s+/g, " ").trim().slice(0, 24);
+}
+
+function generateTesterId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return `tester_${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function isLocalLeaderboardFallbackEnabled() {
+  return (
+    window.location.hostname === "localhost" ||
+    window.location.hostname === "127.0.0.1"
+  );
+}
+
+function loadLeaderboardEntries(): LeaderboardEntry[] {
+  if (!isLocalLeaderboardFallbackEnabled()) {
+    return [];
+  }
+
+  try {
+    const raw = localStorage.getItem(LEADERBOARD_STORAGE_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    return parsed
+      .map((entry) => {
+        const record = entry as Partial<LeaderboardEntry>;
+        const name = typeof record.name === "string" ? normalizeTesterName(record.name) : "";
+        if (!name) {
+          return null;
+        }
+
+        return {
+          id:
+            typeof record.id === "string" && record.id.length > 0
+              ? record.id
+              : generateTesterId(),
+          name,
+          totalScore: Math.max(0, Number(record.totalScore) || 0),
+          slimeScore: Math.max(0, Number(record.slimeScore) || 0),
+          cookingScore: Math.max(0, Number(record.cookingScore) || 0),
+          lastPlayedAt: Math.max(0, Number(record.lastPlayedAt) || 0),
+        };
+      })
+      .filter((entry): entry is LeaderboardEntry => Boolean(entry));
+  } catch {
+    return [];
+  }
+}
+
+function loadCurrentTesterId(entries: LeaderboardEntry[]) {
+  const savedId = localStorage.getItem(CURRENT_TESTER_STORAGE_KEY);
+  if (!isLocalLeaderboardFallbackEnabled()) {
+    return savedId || null;
+  }
+
+  if (savedId && entries.some((entry) => entry.id === savedId)) {
+    return savedId;
+  }
+
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return [...entries].sort((a, b) => b.lastPlayedAt - a.lastPlayedAt)[0].id;
+}
+
 function registerLocaleRefresher(refresher: () => void) {
   localeRefreshers.add(refresher);
 }
 
 function getCurrentUiText() {
   return uiText[currentLanguage];
+}
+
+async function requestLeaderboardApi(
+  path: string,
+  init: RequestInit = {}
+): Promise<{ entries?: unknown; entry?: unknown }> {
+  const requestUrls = [path];
+  if (isLocalLeaderboardFallbackEnabled()) {
+    requestUrls.push(`http://localhost:4173${path}`);
+  }
+
+  let lastError: unknown = null;
+  for (const requestUrl of requestUrls) {
+    try {
+      const headers = new Headers(init.headers);
+      if (init.body && !headers.has("Content-Type")) {
+        headers.set("Content-Type", "application/json");
+      }
+
+      const response = await fetch(requestUrl, {
+        ...init,
+        headers,
+      });
+      if (!response.ok) {
+        throw new Error(`Leaderboard API error ${response.status}`);
+      }
+
+      return (await response.json()) as { entries?: unknown; entry?: unknown };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Leaderboard API unavailable");
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function saveLeaderboardState() {
+  if (isLocalLeaderboardFallbackEnabled()) {
+    localStorage.setItem(LEADERBOARD_STORAGE_KEY, JSON.stringify(testerLeaderboard));
+  } else {
+    localStorage.removeItem(LEADERBOARD_STORAGE_KEY);
+  }
+
+  if (currentTesterId) {
+    localStorage.setItem(CURRENT_TESTER_STORAGE_KEY, currentTesterId);
+  } else {
+    localStorage.removeItem(CURRENT_TESTER_STORAGE_KEY);
+  }
+}
+
+function normalizeLeaderboardEntry(entry: unknown): LeaderboardEntry | null {
+  const record = entry as Partial<LeaderboardEntry> | null;
+  const name = typeof record?.name === "string" ? normalizeTesterName(record.name) : "";
+  if (!record || !name || typeof record.id !== "string" || record.id.length === 0) {
+    return null;
+  }
+
+  return {
+    id: record.id,
+    name,
+    totalScore: Math.max(0, Number(record.totalScore) || 0),
+    slimeScore: Math.max(0, Number(record.slimeScore) || 0),
+    cookingScore: Math.max(0, Number(record.cookingScore) || 0),
+    lastPlayedAt: Math.max(0, Number(record.lastPlayedAt) || 0),
+  };
+}
+
+function sortLeaderboardEntries(entries: LeaderboardEntry[]) {
+  return [...entries].sort((a, b) => {
+    if (b.totalScore !== a.totalScore) {
+      return b.totalScore - a.totalScore;
+    }
+
+    return b.lastPlayedAt - a.lastPlayedAt;
+  });
+}
+
+function applyLeaderboardEntries(
+  entries: unknown,
+  preferredTesterId: string | null = currentTesterId
+) {
+  const normalizedEntries = Array.isArray(entries)
+    ? entries
+        .map((entry) => normalizeLeaderboardEntry(entry))
+        .filter((entry): entry is LeaderboardEntry => Boolean(entry))
+    : [];
+
+  testerLeaderboard = sortLeaderboardEntries(normalizedEntries);
+  currentTesterId =
+    preferredTesterId &&
+    testerLeaderboard.some((entry) => entry.id === preferredTesterId)
+      ? preferredTesterId
+      : currentTesterId &&
+          testerLeaderboard.some((entry) => entry.id === currentTesterId)
+        ? currentTesterId
+        : null;
+  saveLeaderboardState();
+  renderLeaderboard();
+}
+
+function getCurrentTesterEntry() {
+  return testerLeaderboard.find((entry) => entry.id === currentTesterId) ?? null;
+}
+
+function isLeaderboardOpen() {
+  return !leaderboardPanel.classList.contains("hidden");
+}
+
+function formatLeaderboardDate(timestamp: number) {
+  if (!timestamp) {
+    return "-";
+  }
+
+  return new Date(timestamp).toLocaleString(
+    currentLanguage === "fr" ? "fr-FR" : "en-US",
+    {
+      dateStyle: "short",
+      timeStyle: "short",
+    }
+  );
+}
+
+function renderLeaderboard() {
+  const ui = getCurrentUiText();
+  const currentTester = getCurrentTesterEntry();
+  const entries = sortLeaderboardEntries(testerLeaderboard);
+
+  leaderboardTrigger.textContent = ui.leaderboardTrigger;
+  leaderboardEyebrow.textContent = ui.leaderboardEyebrow;
+  leaderboardTitle.textContent = ui.leaderboardTitle;
+  leaderboardBody.textContent = ui.leaderboardBody;
+  closeLeaderboardBtn.textContent = ui.closeLeaderboard;
+  leaderboardCurrentEyebrow.textContent = ui.leaderboardCurrentEyebrow;
+  leaderboardCurrentName.textContent =
+    currentTester?.name ?? ui.leaderboardCurrentEmpty;
+  leaderboardCurrentTotal.textContent = `${ui.leaderboardCurrentTotal}: ${
+    currentTester?.totalScore ?? 0
+  } pts`;
+  testerNameLabel.textContent = ui.leaderboardNameLabel;
+  testerNameInput.placeholder = ui.leaderboardNamePlaceholder;
+  saveTesterBtn.textContent = ui.leaderboardSave;
+  leaderboardHint.textContent = ui.leaderboardHint;
+  leaderboardListEyebrow.textContent = ui.leaderboardListEyebrow;
+  testerSummary.textContent = currentTester
+    ? `${ui.testerSummaryLabel}: ${currentTester.name} | ${currentTester.totalScore} pts`
+    : ui.testerSummaryEmpty;
+
+  if (entries.length === 0) {
+    leaderboardList.innerHTML = `<p class="leaderboard-empty">${escapeHtml(
+      ui.leaderboardEmpty
+    )}</p>`;
+    return;
+  }
+
+  leaderboardList.innerHTML = entries
+    .map((entry, index) => {
+      const isActive = entry.id === currentTesterId;
+      return `
+        <article class="leaderboard-entry${isActive ? " active" : ""}">
+          <div class="leaderboard-rank">#${index + 1}</div>
+          <div>
+            <div class="leaderboard-entry-head">
+              <strong>${escapeHtml(entry.name)}</strong>
+              <span>${entry.totalScore} pts</span>
+            </div>
+            <p class="leaderboard-entry-meta">${escapeHtml(
+              `${ui.leaderboardMetricUpdated}: ${formatLeaderboardDate(entry.lastPlayedAt)}`
+            )}</p>
+            <div class="leaderboard-entry-metrics">
+              <div class="leaderboard-entry-metric">
+                <strong>${escapeHtml(ui.leaderboardMetricSlime)}</strong>
+                <span>${entry.slimeScore} pts</span>
+              </div>
+              <div class="leaderboard-entry-metric">
+                <strong>${escapeHtml(ui.leaderboardMetricCooking)}</strong>
+                <span>${entry.cookingScore} pts</span>
+              </div>
+            </div>
+          </div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function setCurrentTesterLocal(name: string) {
+  const normalizedName = normalizeTesterName(name);
+  if (!normalizedName) {
+    return false;
+  }
+
+  const existingEntry = testerLeaderboard.find(
+    (entry) => entry.name.toLowerCase() === normalizedName.toLowerCase()
+  );
+
+  if (existingEntry) {
+    existingEntry.name = normalizedName;
+    existingEntry.lastPlayedAt = Date.now();
+    currentTesterId = existingEntry.id;
+  } else {
+    const newEntry: LeaderboardEntry = {
+      id: generateTesterId(),
+      name: normalizedName,
+      totalScore: 0,
+      slimeScore: 0,
+      cookingScore: 0,
+      lastPlayedAt: Date.now(),
+    };
+    testerLeaderboard.push(newEntry);
+    currentTesterId = newEntry.id;
+  }
+
+  saveLeaderboardState();
+  renderLeaderboard();
+  return true;
+}
+
+async function setCurrentTester(name: string) {
+  const normalizedName = normalizeTesterName(name);
+  if (!normalizedName) {
+    return false;
+  }
+
+  try {
+    const payload = await requestLeaderboardApi("/api/leaderboard/testers", {
+      method: "POST",
+      body: JSON.stringify({ name: normalizedName }),
+    });
+    const activatedEntry = normalizeLeaderboardEntry(payload.entry);
+    if (!activatedEntry) {
+      throw new Error("Invalid tester payload");
+    }
+
+    currentTesterId = activatedEntry.id;
+    applyLeaderboardEntries(payload.entries, activatedEntry.id);
+    return true;
+  } catch {
+    if (!isLocalLeaderboardFallbackEnabled()) {
+      return false;
+    }
+
+    return setCurrentTesterLocal(normalizedName);
+  }
+}
+
+function awardLeaderboardPointsLocal(category: LeaderboardCategory, delta: number) {
+  const activeTester = getCurrentTesterEntry();
+  if (!activeTester || delta === 0) {
+    return;
+  }
+
+  activeTester.totalScore = Math.max(0, activeTester.totalScore + delta);
+  if (category === "slime") {
+    activeTester.slimeScore = Math.max(0, activeTester.slimeScore + delta);
+  } else {
+    activeTester.cookingScore = Math.max(0, activeTester.cookingScore + delta);
+  }
+  activeTester.lastPlayedAt = Date.now();
+  saveLeaderboardState();
+  renderLeaderboard();
+}
+
+let leaderboardMutationQueue = Promise.resolve();
+
+function refreshLeaderboardFromApi() {
+  return requestLeaderboardApi("/api/leaderboard")
+    .then((payload) => {
+      applyLeaderboardEntries(payload.entries);
+    })
+    .catch(() => {
+      renderLeaderboard();
+    });
+}
+
+function awardLeaderboardPoints(category: LeaderboardCategory, delta: number) {
+  if (!currentTesterId || delta === 0) {
+    return;
+  }
+
+  const testerId = currentTesterId;
+  leaderboardMutationQueue = leaderboardMutationQueue
+    .then(async () => {
+      try {
+        const payload = await requestLeaderboardApi("/api/leaderboard/score", {
+          method: "POST",
+          body: JSON.stringify({
+            testerId,
+            category,
+            delta,
+          }),
+        });
+        applyLeaderboardEntries(payload.entries, testerId);
+      } catch {
+        if (isLocalLeaderboardFallbackEnabled()) {
+          awardLeaderboardPointsLocal(category, delta);
+        }
+      }
+    })
+    .catch(() => undefined);
 }
 
 function getProjectText(project: ProjectData) {
@@ -774,6 +1247,7 @@ function applyStaticLanguage() {
   } else {
     combatStatus.textContent = ui.combatDefault;
   }
+  renderLeaderboard();
 }
 
 function setLanguage(language: AppLanguage) {
@@ -809,7 +1283,11 @@ function syncCrosshairVisibility() {
   const panelOpen = !projectPanel.classList.contains("hidden");
   crosshair.classList.toggle(
     "hidden",
-    panelOpen || isOverviewOpen() || !isPointerLocked || isDrivingVehicle
+    panelOpen ||
+      isOverviewOpen() ||
+      isLeaderboardOpen() ||
+      !isPointerLocked ||
+      isDrivingVehicle
   );
 }
 
@@ -923,6 +1401,7 @@ function openProjectPanel(project: ProjectData) {
     document.exitPointerLock();
   }
 
+  leaderboardPanel.classList.add("hidden");
   const text = getProjectText(project);
   projectKicker.textContent = text.accent;
   projectTitle.textContent = text.title;
@@ -962,6 +1441,7 @@ function openProjectsOverview() {
     document.exitPointerLock();
   }
 
+  leaderboardPanel.classList.add("hidden");
   projectPanel.classList.add("hidden");
   closePanelBtn.classList.add("hidden");
   heroPanel.classList.add("hidden");
@@ -976,6 +1456,35 @@ function openProjectsOverview() {
 
 function closeProjectsOverview() {
   projectsOverview.classList.add("hidden");
+  heroPanel.classList.remove("hidden");
+  syncCrosshairVisibility();
+  updateStatus(getFreeRoamStatusMessage());
+}
+
+function openLeaderboardPanel() {
+  if (document.pointerLockElement === canvas) {
+    document.exitPointerLock();
+  }
+
+  projectPanel.classList.add("hidden");
+  closePanelBtn.classList.add("hidden");
+  heroPanel.classList.add("hidden");
+  projectsOverview.classList.add("hidden");
+  leaderboardPanel.classList.remove("hidden");
+  renderLeaderboard();
+  void refreshLeaderboardFromApi();
+  testerNameInput.value = "";
+  testerNameInput.focus();
+  syncCrosshairVisibility();
+  updateStatus(
+    currentLanguage === "fr"
+      ? "Leaderboard partage ouvert."
+      : "Local leaderboard opened."
+  );
+}
+
+function closeLeaderboardPanel() {
+  leaderboardPanel.classList.add("hidden");
   heroPanel.classList.remove("hidden");
   syncCrosshairVisibility();
   updateStatus(getFreeRoamStatusMessage());
@@ -998,11 +1507,47 @@ function openProjectInfo(projectId: string) {
 closePanelBtn.addEventListener("click", closeProjectPanel);
 overviewTrigger.addEventListener("click", openProjectsOverview);
 closeOverviewBtn.addEventListener("click", closeProjectsOverview);
+leaderboardTrigger.addEventListener("click", openLeaderboardPanel);
+closeLeaderboardBtn.addEventListener("click", closeLeaderboardPanel);
 languageToggle.addEventListener("click", () => {
   setLanguage(currentLanguage === "fr" ? "en" : "fr");
 });
+
+function saveTesterFromInput() {
+  const previousTesterId = currentTesterId;
+  const submit = async () => {
+    saveTesterBtn.disabled = true;
+    testerNameInput.disabled = true;
+    const success = await setCurrentTester(testerNameInput.value);
+    saveTesterBtn.disabled = false;
+    testerNameInput.disabled = false;
+    if (!success) {
+      testerNameInput.focus();
+      return;
+    }
+
+    testerNameInput.value = "";
+    if (!previousTesterId || isLeaderboardOpen()) {
+      closeLeaderboardPanel();
+    }
+  };
+  void submit();
+}
+
+saveTesterBtn.addEventListener("click", saveTesterFromInput);
+testerNameInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    saveTesterFromInput();
+  }
+});
+
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
+    if (isLeaderboardOpen()) {
+      closeLeaderboardPanel();
+      return;
+    }
     if (isOverviewOpen()) {
       closeProjectsOverview();
       return;
@@ -1012,6 +1557,7 @@ window.addEventListener("keydown", (event) => {
 });
 
 applyStaticLanguage();
+void refreshLeaderboardFromApi();
 
 function createProjectCards() {
   projectRail.innerHTML = "";
@@ -3125,6 +3671,7 @@ function createVRCookingSystem(
       !isPointerLocked ||
       !projectPanel.classList.contains("hidden") ||
       isOverviewOpen() ||
+      isLeaderboardOpen() ||
       !focusedStationId
     ) {
       return false;
@@ -3347,6 +3894,7 @@ function createVRCookingSystem(
         const comboBonus = getComboBonus();
         const totalReward = servedOrder.reward + comboBonus;
         score += totalReward;
+        awardLeaderboardPoints("cooking", totalReward);
         inventory.burger = null;
         refillOrders();
         orderBoardDirty = true;
@@ -3389,7 +3937,8 @@ function createVRCookingSystem(
       const visible =
         isPlayerInsideZone() &&
         projectPanel.classList.contains("hidden") &&
-        !isOverviewOpen();
+        !isOverviewOpen() &&
+        !isLeaderboardOpen();
 
       if (comboStreak > 0 && now > comboExpiresAt) {
         comboStreak = 0;
@@ -3423,7 +3972,9 @@ function createVRCookingSystem(
           }
         }
         if (expiredOrders.length > 0) {
-          score = Math.max(0, score - expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY);
+          const penalty = expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY;
+          score = Math.max(0, score - penalty);
+          awardLeaderboardPoints("cooking", -penalty);
           comboStreak = 0;
           comboExpiresAt = 0;
           refillOrders();
@@ -6695,6 +7246,7 @@ function createSlimeEnemySystem(
           }
           scoreDelta = SLIME_WEAPON_SCORE_PER_KILL;
           score += scoreDelta;
+          awardLeaderboardPoints("slime", scoreDelta);
           hit = true;
         }
       } else if (worldPick?.hit && worldPick.pickedPoint) {
@@ -7042,7 +7594,10 @@ function createSlimeWeaponSystem(
   };
 
   const isCombatVisible = () =>
-    enemySystem.isPlayerInsideArena() && projectPanel.classList.contains("hidden");
+    enemySystem.isPlayerInsideArena() &&
+    projectPanel.classList.contains("hidden") &&
+    !isOverviewOpen() &&
+    !isLeaderboardOpen();
 
   const isArmed = () => isCombatVisible() && isPointerLocked;
 
@@ -8007,6 +8562,7 @@ function createDrivingSimSystem(
 
       const visible =
         projectPanel.classList.contains("hidden") &&
+        !isLeaderboardOpen() &&
         !isOverviewOpen() &&
         (driving || isInsideZonePoint(camera.position));
       const canControl = visible && isPointerLocked;
@@ -8758,7 +9314,7 @@ function createScene() {
 
   canvas.addEventListener("pointerdown", (event) => {
     const clickedUi = (event.target as HTMLElement).closest(
-      "#projectRail, #projectPanel, #topbar, #heroPanel, #closePanel"
+      "#projectRail, #projectPanel, #topbar, #heroPanel, #closePanel, #leaderboardPanel"
     );
 
     if (!clickedUi && document.pointerLockElement !== canvas) {
@@ -8855,7 +9411,10 @@ function createScene() {
     isDrivingVehicle = drivingSimSystem?.isDriving() ?? false;
     vrCookingSystem?.update();
     const showCombatHud =
-      isInSlimeCombatZone && projectPanel.classList.contains("hidden");
+      isInSlimeCombatZone &&
+      projectPanel.classList.contains("hidden") &&
+      !isOverviewOpen() &&
+      !isLeaderboardOpen();
     combatHud.classList.toggle("hidden", !showCombatHud);
     if (showCombatHud && slimeEnemySystem) {
       combatScore.textContent = slimeEnemySystem
