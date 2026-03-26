@@ -7274,7 +7274,8 @@ function createZoneLockBarrier(
     scene
   );
   label.parent = root;
-  label.position = new BABYLON.Vector3(0, size.height * 0.5 + 0.46, 0);
+  label.position = new BABYLON.Vector3(0, size.height * 0.5 + 0.46, -size.depth * 0.5 - 0.03);
+  label.rotation.y = Math.PI;
   label.isPickable = false;
   label.material = labelMaterial;
 
