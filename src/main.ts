@@ -115,6 +115,8 @@ type SlimeEnemySystem = {
   isPlayerInsideArena: () => boolean;
   getScore: () => number;
   getEnemyCount: () => number;
+  isLocked: () => boolean;
+  getPlayerHitCount: () => number;
 };
 
 type SlimeWeaponSystem = {
@@ -181,6 +183,8 @@ type VRCookingSystem = {
   update: () => void;
   interact: () => boolean;
   isPlayerInsideZone: () => boolean;
+  isLocked: () => boolean;
+  getFailureCount: () => number;
 };
 
 type DrivingInteractionId = "car";
@@ -237,6 +241,8 @@ const SLIME_ENEMY_SPAWN_MIN_HEIGHT = 7.8;
 const SLIME_ENEMY_SPAWN_MAX_HEIGHT = 12.6;
 const SLIME_ENEMY_CHASE_SPEED_MIN = 2.2;
 const SLIME_ENEMY_CHASE_SPEED_MAX = 3.15;
+const SLIME_PLAYER_HIT_LIMIT = 4;
+const SLIME_PLAYER_CONTACT_DISTANCE = 1.18;
 const SLIME_WEAPON_RANGE = 24;
 const SLIME_WEAPON_COOLDOWN = 0.2;
 const SLIME_WEAPON_BOLT_LIFETIME = 120;
@@ -252,6 +258,7 @@ const VR_COOKING_ORDER_TIME_LIMIT = 60;
 const VR_COOKING_ORDER_WARNING_TIME = 16;
 const VR_COOKING_ORDER_DANGER_TIME = 8;
 const VR_COOKING_TIMEOUT_PENALTY = 45;
+const VR_COOKING_FAILURE_LIMIT = 3;
 const VR_COOKING_COMBO_WINDOW = 7;
 const VR_COOKING_COMBO_BONUS_STEP = 20;
 const VR_COOKING_COMBO_MAX_BONUS = 80;
@@ -2067,7 +2074,8 @@ function createVrCookingZone(scene: BABYLON.Scene, project: ProjectData) {
 function createVRCookingSystem(
   scene: BABYLON.Scene,
   project: ProjectData,
-  camera: BABYLON.UniversalCamera
+  camera: BABYLON.UniversalCamera,
+  playerController: PlayerController
 ): VRCookingSystem {
   const { right, back, yaw } = getRoomBasis(project);
   const zoneHalfWidth = VR_COOKING_ZONE_WIDTH * 0.5;
@@ -2115,6 +2123,22 @@ function createVRCookingSystem(
   let comboExpiresAt = 0;
   let unlockedClientCount = VR_COOKING_INITIAL_CLIENT_COUNT;
   let cookingActiveElapsedMs = 0;
+  let failedOrders = 0;
+  let locked = false;
+
+  const entranceBarrier = createZoneLockBarrier(
+    scene,
+    `${project.id}_lockBarrier`,
+    toWorld(0, 1.34, -zoneHalfDepth + 0.28),
+    yaw,
+    { width: 4.96, height: 2.68, depth: 0.28 },
+    project.color,
+    () => (currentLanguage === "fr" ? "SERVICE FERME" : "SERVICE CLOSED"),
+    () =>
+      currentLanguage === "fr"
+        ? "3 clients perdus - acces bloque"
+        : "3 customers lost - area locked"
+  );
 
   const resetInventory = () => {
     inventory.bun = false;
@@ -2134,6 +2158,49 @@ function createVRCookingSystem(
     !inventory.lettuce &&
     !inventory.tomato &&
     inventory.burger === null;
+
+  const lockKitchen = () => {
+    if (locked) {
+      return;
+    }
+
+    locked = true;
+    entranceBarrier.setEnabled(true);
+    resetInventory();
+    orderQueue.length = 0;
+    grillActive = false;
+    grillReady = false;
+    grillProgress = 0;
+    comboStreak = 0;
+    comboExpiresAt = 0;
+    focusedStationId = null;
+    orderBoardDirty = true;
+    showCookingPopup(
+      currentLanguage === "fr" ? "Cuisine fermee" : "Kitchen closed",
+      "error",
+      1600
+    );
+    updateStatus(
+      currentLanguage === "fr"
+        ? "VR Cooking verrouille : 3 clients ont ete perdus."
+        : "VR Cooking locked: 3 customers were lost."
+    );
+    playerController.syncPosition(
+      toWorld(0, PLAYER_HEIGHT, -zoneHalfDepth - 1.35)
+    );
+  };
+
+  const registerFailure = (count: number) => {
+    if (locked || count <= 0) {
+      return;
+    }
+
+    failedOrders = Math.min(VR_COOKING_FAILURE_LIMIT, failedOrders + count);
+    orderBoardDirty = true;
+    if (failedOrders >= VR_COOKING_FAILURE_LIMIT) {
+      lockKitchen();
+    }
+  };
 
   const getIngredientLabels = () =>
     currentLanguage === "fr"
@@ -2294,6 +2361,10 @@ function createVRCookingSystem(
   };
 
   const refillOrders = () => {
+    if (locked) {
+      return;
+    }
+
     while (orderQueue.length < unlockedClientCount) {
       orderQueue.push(createOrder());
     }
@@ -2497,6 +2568,60 @@ function createVRCookingSystem(
   const updateOrderBoard = (now = performance.now()) => {
     boardContext.clearRect(0, 0, 1280, 900);
 
+    if (locked) {
+      const gradient = boardContext.createLinearGradient(0, 0, 0, 900);
+      gradient.addColorStop(0, "rgba(18, 10, 14, 0.98)");
+      gradient.addColorStop(1, "rgba(8, 4, 8, 0.98)");
+      boardContext.fillStyle = gradient;
+      boardContext.fillRect(0, 0, 1280, 900);
+      boardContext.fillStyle = "rgba(255, 116, 116, 0.18)";
+      boardContext.fillRect(72, 72, 1136, 756);
+      boardContext.strokeStyle = "rgba(255, 126, 126, 0.88)";
+      boardContext.lineWidth = 4;
+      boardContext.strokeRect(72, 72, 1136, 756);
+      boardContext.textAlign = "center";
+      boardContext.textBaseline = "middle";
+      boardContext.fillStyle = "rgba(255, 236, 236, 0.96)";
+      boardContext.font = "700 74px Segoe UI";
+      boardContext.fillText(
+        currentLanguage === "fr" ? "SERVICE FERME" : "SERVICE CLOSED",
+        640,
+        326
+      );
+      boardContext.fillStyle = "rgba(255, 202, 202, 0.9)";
+      boardContext.font = "600 36px Segoe UI";
+      boardContext.fillText(
+        currentLanguage === "fr"
+          ? "3 clients mal servis ou perdus"
+          : "3 customers served wrong or lost",
+        640,
+        406
+      );
+      boardContext.fillStyle = "rgba(223, 232, 248, 0.84)";
+      boardContext.font = "500 28px Segoe UI";
+      boardContext.fillText(
+        currentLanguage === "fr"
+          ? "La cuisine est verrouillee pour le reste de la visite."
+          : "The kitchen is locked for the rest of the visit.",
+        640,
+        470
+      );
+      boardContext.fillStyle = "rgba(255, 216, 180, 0.95)";
+      boardContext.font = "700 34px Segoe UI";
+      boardContext.fillText(
+        `${currentLanguage === "fr" ? "Score final" : "Final score"} ${score
+          .toString()
+          .padStart(4, "0")}`,
+        640,
+        560
+      );
+      boardTexture.update();
+      orderBoardDirty = false;
+      lastBoardRefreshAt = performance.now();
+      updateClientVisuals(now);
+      return;
+    }
+
     const gradient = boardContext.createLinearGradient(0, 0, 0, 900);
     gradient.addColorStop(0, "rgba(10, 16, 28, 0.98)");
     gradient.addColorStop(1, "rgba(4, 8, 14, 0.98)");
@@ -2666,6 +2791,19 @@ function createVRCookingSystem(
   });
 
   const updateCookingHudState = (now: number) => {
+    if (locked) {
+      cookingHud.classList.remove("urgent", "danger");
+      cookingRush.classList.remove("warning", "danger");
+      cookingCombo.classList.remove("active");
+      cookingRush.textContent =
+        currentLanguage === "fr" ? "Cuisine fermee" : "Kitchen closed";
+      cookingCombo.textContent =
+        currentLanguage === "fr"
+          ? `Erreurs ${failedOrders}/${VR_COOKING_FAILURE_LIMIT}`
+          : `Fails ${failedOrders}/${VR_COOKING_FAILURE_LIMIT}`;
+      return;
+    }
+
     const nextExpiry = orderQueue.reduce((minTime, order) => {
       return Math.min(minTime, getOrderTimeLeftMs(order));
     }, Number.POSITIVE_INFINITY);
@@ -3555,6 +3693,12 @@ function createVRCookingSystem(
   };
 
   const getHintForStation = () => {
+    if (locked) {
+      return currentLanguage === "fr"
+        ? "Cuisine verrouillee - la partie est terminee."
+        : "Kitchen locked - the run is over.";
+    }
+
     if (!focusedStationId) {
       return currentLanguage === "fr"
         ? "Vise une station et clique ou appuie sur E pour interagir."
@@ -3683,6 +3827,7 @@ function createVRCookingSystem(
 
   const interact = () => {
     if (
+      locked ||
       !isPlayerInsideZone() ||
       !isPointerLocked ||
       !projectPanel.classList.contains("hidden") ||
@@ -3896,6 +4041,8 @@ function createVRCookingSystem(
         if (orderIndex < 0) {
           comboStreak = 0;
           comboExpiresAt = 0;
+          inventory.burger = null;
+          registerFailure(1);
           showCookingPopup(
             currentLanguage === "fr" ? "Mauvaise commande" : "Wrong order",
             "error",
@@ -3947,6 +4094,12 @@ function createVRCookingSystem(
   return {
     interact,
     isPlayerInsideZone,
+    isLocked() {
+      return locked;
+    },
+    getFailureCount() {
+      return failedOrders;
+    },
     update() {
       const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
       const now = performance.now();
@@ -3993,6 +4146,7 @@ function createVRCookingSystem(
           awardLeaderboardPoints("cooking", -penalty);
           comboStreak = 0;
           comboExpiresAt = 0;
+          registerFailure(expiredOrders.length);
           refillOrders();
           orderBoardDirty = true;
           showCookingPopup(
@@ -7047,12 +7201,94 @@ function createSlimeRainSystem(
   return { lines, respawnLine };
 }
 
+function createZoneLockBarrier(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  size: { width: number; height: number; depth: number },
+  color: BABYLON.Color3,
+  getTitle: () => string,
+  getSubtitle: () => string
+) {
+  const root = new BABYLON.TransformNode(`${name}_root`, scene);
+  root.position.copyFrom(position);
+  root.rotation.y = rotationY;
+
+  const barrier = BABYLON.MeshBuilder.CreateBox(
+    name,
+    size,
+    scene
+  );
+  barrier.parent = root;
+  barrier.isPickable = false;
+  barrier.checkCollisions = true;
+  const barrierMaterial = createMaterial(
+    scene,
+    `${name}_mat`,
+    color.scale(0.2),
+    color.scale(0.34),
+    0.78
+  );
+  barrierMaterial.disableLighting = true;
+  barrier.material = barrierMaterial;
+
+  const labelTexture = new BABYLON.DynamicTexture(
+    `${name}_labelTexture`,
+    { width: 768, height: 196 },
+    scene,
+    true
+  );
+  labelTexture.hasAlpha = true;
+  const labelContext = labelTexture.getContext() as CanvasRenderingContext2D;
+  const drawLabel = () => {
+    labelContext.clearRect(0, 0, 768, 196);
+    labelContext.fillStyle = "rgba(8, 12, 18, 0.88)";
+    labelContext.fillRect(12, 12, 744, 172);
+    labelContext.strokeStyle = rgbString(color);
+    labelContext.lineWidth = 3;
+    labelContext.strokeRect(12, 12, 744, 172);
+    labelContext.fillStyle = "rgba(244, 247, 255, 0.96)";
+    labelContext.font = "700 54px Segoe UI";
+    labelContext.textAlign = "center";
+    labelContext.textBaseline = "middle";
+    labelContext.fillText(getTitle(), 384, 76);
+    labelContext.fillStyle = "rgba(210, 224, 244, 0.88)";
+    labelContext.font = "500 26px Segoe UI";
+    labelContext.fillText(getSubtitle(), 384, 132);
+    labelTexture.update();
+  };
+  registerLocaleRefresher(drawLabel);
+  drawLabel();
+
+  const labelMaterial = new BABYLON.StandardMaterial(`${name}_labelMat`, scene);
+  labelMaterial.diffuseTexture = labelTexture;
+  labelMaterial.emissiveTexture = labelTexture;
+  labelMaterial.opacityTexture = labelTexture;
+  labelMaterial.disableLighting = true;
+  labelMaterial.backFaceCulling = false;
+
+  const label = BABYLON.MeshBuilder.CreatePlane(
+    `${name}_label`,
+    { width: Math.max(2.8, size.width * 0.72), height: 0.72, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
+    scene
+  );
+  label.parent = root;
+  label.position = new BABYLON.Vector3(0, size.height * 0.5 + 0.46, 0);
+  label.isPickable = false;
+  label.material = labelMaterial;
+
+  root.setEnabled(false);
+  return root;
+}
+
 function createSlimeEnemySystem(
   scene: BABYLON.Scene,
   project: ProjectData,
-  camera: BABYLON.UniversalCamera
+  camera: BABYLON.UniversalCamera,
+  playerController: PlayerController
 ): SlimeEnemySystem {
-  const { right, back } = getRoomBasis(project);
+  const { right, back, yaw } = getRoomBasis(project);
   const toWorld = (x: number, y: number, z: number) =>
     project.position
       .add(right.scale(x))
@@ -7103,9 +7339,25 @@ function createSlimeEnemySystem(
     0.16
   );
 
+  const entranceBarrier = createZoneLockBarrier(
+    scene,
+    `${project.id}_lockBarrier`,
+    toWorld(0, 1.42, -SLIME_ARENA_HALF_SIZE + 0.34),
+    yaw,
+    { width: 6.1, height: 2.84, depth: 0.32 },
+    project.color,
+    () => (currentLanguage === "fr" ? "QUARANTAINE" : "QUARANTINED"),
+    () =>
+      currentLanguage === "fr"
+        ? "4 impacts subis - acces bloque"
+        : "4 hits taken - area locked"
+  );
+
   const enemies: SlimeEnemy[] = [];
   let spawnTimer = 0;
   let score = 0;
+  let playerHitCount = 0;
+  let locked = false;
 
   function disposeEnemy(enemy: SlimeEnemy) {
     if (
@@ -7128,6 +7380,25 @@ function createSlimeEnemySystem(
       }
     }
     spawnTimer = 0;
+  }
+
+  function lockArena() {
+    if (locked) {
+      return;
+    }
+
+    locked = true;
+    entranceBarrier.setEnabled(true);
+    disposeAll();
+    showCombatPopup(currentLanguage === "fr" ? "Arene perdue" : "Arena failed");
+    updateStatus(
+      currentLanguage === "fr"
+        ? "Survivor Slime verrouille : 4 slimes t'ont touche."
+        : "Survivor Slime locked: 4 slimes reached you."
+    );
+    playerController.syncPosition(
+      toWorld(0, PLAYER_HEIGHT, -SLIME_ARENA_HALF_SIZE - 1.8)
+    );
   }
 
   function spawnEnemy() {
@@ -7285,9 +7556,22 @@ function createSlimeEnemySystem(
     getEnemyCount() {
       return enemies.length;
     },
+    isLocked() {
+      return locked;
+    },
+    getPlayerHitCount() {
+      return playerHitCount;
+    },
     update() {
       const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
       if (dt <= 0) {
+        return;
+      }
+
+      if (locked) {
+        if (enemies.length > 0) {
+          disposeAll();
+        }
         return;
       }
 
@@ -7320,6 +7604,23 @@ function createSlimeEnemySystem(
           const toPlayerX = playerLocal.x - enemy.localX;
           const toPlayerZ = playerLocal.z - enemy.localZ;
           const distance = Math.sqrt(toPlayerX * toPlayerX + toPlayerZ * toPlayerZ);
+          if (distance <= SLIME_PLAYER_CONTACT_DISTANCE) {
+            playerHitCount += 1;
+            showCombatPopup(
+              currentLanguage === "fr"
+                ? `Impact ${playerHitCount}/${SLIME_PLAYER_HIT_LIMIT}`
+                : `Hit ${playerHitCount}/${SLIME_PLAYER_HIT_LIMIT}`
+            );
+            const enemyIndex = enemies.indexOf(enemy);
+            disposeEnemy(enemy);
+            if (enemyIndex >= 0) {
+              enemies.splice(enemyIndex, 1);
+            }
+            if (playerHitCount >= SLIME_PLAYER_HIT_LIMIT) {
+              lockArena();
+            }
+            continue;
+          }
           if (distance > 1.1) {
             const step = Math.min(enemy.moveSpeed * dt, distance - 0.95);
             enemy.localX += (toPlayerX / distance) * step;
@@ -9270,14 +9571,14 @@ function createScene() {
     ? createSlimeRainSystem(scene, slimeProject)
     : { lines: [], respawnLine: (_line: BABYLON.InstancedMesh) => undefined };
   const slimeEnemySystem = slimeProject
-    ? createSlimeEnemySystem(scene, slimeProject, camera)
+    ? createSlimeEnemySystem(scene, slimeProject, camera, playerController)
     : null;
   const slimeWeaponSystem =
     slimeProject && slimeEnemySystem
       ? createSlimeWeaponSystem(scene, camera, slimeProject, slimeEnemySystem)
       : null;
   const vrCookingSystem = vrCookingProject
-    ? createVRCookingSystem(scene, vrCookingProject, camera)
+    ? createVRCookingSystem(scene, vrCookingProject, camera, playerController)
     : null;
   const drivingSimSystem = drivingSimProject
     ? createDrivingSimSystem(scene, drivingSimProject, camera, playerController)
@@ -9458,11 +9759,15 @@ function createScene() {
         .toString()
         .padStart(4, "0");
       const enemyCount = slimeEnemySystem.getEnemyCount();
-      combatStatus.textContent =
-        enemyCount > 0
+      const hitCount = slimeEnemySystem.getPlayerHitCount();
+      combatStatus.textContent = slimeEnemySystem.isLocked()
+        ? currentLanguage === "fr"
+          ? "Arene verrouillee - 4 impacts subis."
+          : "Arena locked - 4 hits taken."
+        : enemyCount > 0
           ? currentLanguage === "fr"
-            ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - clic gauche pour lancer un eclair`
-            : `${enemyCount} active slime${enemyCount > 1 ? "s" : ""} - left click to fire lightning`
+            ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} impact${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} restant${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""}`
+            : `${enemyCount} active slime${enemyCount > 1 ? "s" : ""} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} hit${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} left`
           : currentLanguage === "fr"
             ? "Zone securisee pour l'instant - les slimes repopent tant que tu restes dans l'arene"
             : "Area secured for now - slimes keep respawning while you stay in the arena";
