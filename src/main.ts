@@ -547,27 +547,27 @@ const uiText = {
       "Une lecture rapide du portfolio si tu n'as pas le temps de faire la visite interactive.",
     closeOverview: "Fermer",
     leaderboardEyebrow: "Leaderboard partage",
-    leaderboardTitle: "Scores des testeurs",
+    leaderboardTitle: "Scores des joueurs",
     leaderboardBody:
-      "Choisis un nom de testeur pour cumuler les points de Survivor Slime et VR Cooking et partager le score avec les autres visiteurs.",
+      "Choisis un nom de joueur pour cumuler les points de Survivor Slime et VR Cooking et partager le score avec les autres visiteurs.",
     closeLeaderboard: "Fermer",
-    leaderboardCurrentEyebrow: "Testeur actif",
-    leaderboardCurrentEmpty: "Aucun testeur",
+    leaderboardCurrentEyebrow: "Joueur actif",
+    leaderboardCurrentEmpty: "Aucun joueur",
     leaderboardCurrentTotal: "Total cumule",
-    leaderboardNameLabel: "Nom du testeur",
+    leaderboardNameLabel: "Nom du joueur",
     leaderboardNamePlaceholder: "Entre un nom",
     leaderboardSave: "Activer",
     leaderboardHint:
       "Le score cumule les points de combat et de cuisine. Les donnees sont synchronisees avec le site.",
     leaderboardListEyebrow: "Classement global",
     leaderboardEmpty:
-      "Aucun score enregistre pour l'instant. Cree un testeur puis lance un mini-jeu pour alimenter le classement.",
+      "Aucun score enregistre pour l'instant. Cree un joueur puis lance un mini-jeu pour alimenter le classement.",
     leaderboardMetricTotal: "Total",
     leaderboardMetricSlime: "Slime",
     leaderboardMetricCooking: "Cooking",
     leaderboardMetricUpdated: "Derniere activite",
-    testerSummaryEmpty: "Aucun testeur actif",
-    testerSummaryLabel: "Testeur",
+    testerSummaryEmpty: "Aucun joueur actif",
+    testerSummaryLabel: "Joueur",
     hintCapture: "Clic scene pour capturer la souris",
     hintMove: "ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter",
     hintOpen: "E pour ouvrir, Echap pour liberer",
@@ -614,27 +614,27 @@ const uiText = {
       "A quick read-through of the portfolio if you do not have time for the interactive visit.",
     closeOverview: "Close",
     leaderboardEyebrow: "Shared leaderboard",
-    leaderboardTitle: "Tester scores",
+    leaderboardTitle: "Player scores",
     leaderboardBody:
-      "Pick a tester name to accumulate Survivor Slime and VR Cooking points and share the score with other visitors.",
+      "Pick a player name to accumulate Survivor Slime and VR Cooking points and share the score with other visitors.",
     closeLeaderboard: "Close",
-    leaderboardCurrentEyebrow: "Active tester",
-    leaderboardCurrentEmpty: "No tester selected",
+    leaderboardCurrentEyebrow: "Active player",
+    leaderboardCurrentEmpty: "No player selected",
     leaderboardCurrentTotal: "Total score",
-    leaderboardNameLabel: "Tester name",
+    leaderboardNameLabel: "Player name",
     leaderboardNamePlaceholder: "Enter a name",
     leaderboardSave: "Activate",
     leaderboardHint:
       "The score combines combat and cooking points. Data is synced with the website.",
     leaderboardListEyebrow: "Global ranking",
     leaderboardEmpty:
-      "No score recorded yet. Create a tester and launch a mini-game to feed the ranking.",
+      "No score recorded yet. Create a player and launch a mini-game to feed the ranking.",
     leaderboardMetricTotal: "Total",
     leaderboardMetricSlime: "Slime",
     leaderboardMetricCooking: "Cooking",
     leaderboardMetricUpdated: "Last activity",
-    testerSummaryEmpty: "No active tester",
-    testerSummaryLabel: "Tester",
+    testerSummaryEmpty: "No active player",
+    testerSummaryLabel: "Player",
     hintCapture: "Click scene to capture the mouse",
     hintMove: "ZQSD / WASD to move, Shift to sprint, Space to jump",
     hintOpen: "E to open, Escape to release",
@@ -788,6 +788,22 @@ function isLocalLeaderboardFallbackEnabled() {
   return (
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
+  );
+}
+
+function isEditableTarget(target: EventTarget | null) {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+
+  if (target.isContentEditable) {
+    return true;
+  }
+
+  return (
+    target instanceof HTMLInputElement ||
+    target instanceof HTMLTextAreaElement ||
+    target instanceof HTMLSelectElement
   );
 }
 
@@ -8507,6 +8523,10 @@ function createDrivingSimSystem(
   }
 
   window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
     if (!drivingKeys.has(event.code)) {
       return;
     }
@@ -8516,6 +8536,10 @@ function createDrivingSimSystem(
   });
 
   window.addEventListener("keyup", (event) => {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
     if (!drivingKeys.has(event.code)) {
       return;
     }
@@ -8837,6 +8861,10 @@ function createPlayerController(
   }
 
   window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
     if (!movementKeys.has(event.code)) {
       return;
     }
@@ -8849,6 +8877,10 @@ function createPlayerController(
   });
 
   window.addEventListener("keyup", (event) => {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
     if (!movementKeys.has(event.code)) {
       return;
     }
@@ -9348,6 +9380,10 @@ function createScene() {
   });
 
   window.addEventListener("keydown", (event) => {
+    if (isEditableTarget(event.target)) {
+      return;
+    }
+
     if (event.key.toLowerCase() !== "e") {
       return;
     }
