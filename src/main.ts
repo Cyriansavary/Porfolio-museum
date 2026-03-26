@@ -163,7 +163,7 @@ type VRCookingOrder = {
   ingredients: string[];
   reward: number;
   timeLimitMs: number;
-  expiresAt: number;
+  remainingMs: number;
 };
 
 type CookingPopupTone = "neutral" | "success" | "warning" | "error";
@@ -181,6 +181,36 @@ type VRCookingSystem = {
   update: () => void;
   interact: () => boolean;
   isPlayerInsideZone: () => boolean;
+};
+
+type DrivingInteractionId = "car";
+
+type DrivingInteractableMetadata = {
+  drivingInteractableId?: DrivingInteractionId;
+};
+
+type DrivingSimSystem = {
+  update: () => void;
+  interact: (allowExit?: boolean) => boolean;
+  isPlayerInsideZone: () => boolean;
+  isDriving: () => boolean;
+  getSpeedKph: () => number;
+};
+
+type AppLanguage = "fr" | "en";
+
+type ProjectTextContent = {
+  title: string;
+  subtitle: string;
+  description: string;
+  engine: string;
+  focus: string;
+  context: string;
+  role: string;
+  year: string;
+  stack: string;
+  atmosphere: string;
+  accent: string;
 };
 
 const PLAYER_HEIGHT = 1.72;
@@ -205,13 +235,28 @@ const VR_COOKING_ZONE_DEPTH = 13.4;
 const VR_COOKING_INTERACTION_DISTANCE = 4.4;
 const VR_COOKING_GRILL_TIME = 4.5;
 const VR_COOKING_ORDER_COUNT = 2;
-const VR_COOKING_ORDER_TIME_LIMIT = 48;
+const VR_COOKING_INITIAL_CLIENT_COUNT = 1;
+const VR_COOKING_SECOND_CLIENT_DELAY = 45;
+const VR_COOKING_ORDER_TIME_LIMIT = 60;
 const VR_COOKING_ORDER_WARNING_TIME = 16;
 const VR_COOKING_ORDER_DANGER_TIME = 8;
 const VR_COOKING_TIMEOUT_PENALTY = 45;
 const VR_COOKING_COMBO_WINDOW = 7;
 const VR_COOKING_COMBO_BONUS_STEP = 20;
 const VR_COOKING_COMBO_MAX_BONUS = 80;
+const DRIVING_ZONE_WIDTH = 72;
+const DRIVING_ZONE_DEPTH = 76;
+const DRIVING_INTERACTION_DISTANCE = 5.2;
+const DRIVING_MAX_FORWARD_SPEED = 14.5;
+const DRIVING_MAX_REVERSE_SPEED = 5.4;
+const DRIVING_ACCELERATION = 9.4;
+const DRIVING_REVERSE_ACCELERATION = 7.2;
+const DRIVING_BRAKE_DECELERATION = 15.5;
+const DRIVING_COAST_DECELERATION = 5.6;
+const DRIVING_STEER_RESPONSE = 8.4;
+const DRIVING_TURN_RATE = 1.62;
+const DRIVING_ZONE_NAV_MARGIN = 0.65;
+const WORLD_SIZE = 520;
 const START_POSITION = new BABYLON.Vector3(0, PLAYER_HEIGHT, 8);
 const ROOM_OFFSET = 15;
 const WALK_SPEED = 6.2;
@@ -293,8 +338,8 @@ const projects: ProjectData[] = [
       "La reussite passait par une gestuelle satisfaisante et par une lecture immediate des outils, ingredients et actions en espace partage.",
     accent: "Exposition 03",
     color: new BABYLON.Color3(1.0, 0.65, 0.25),
-    position: new BABYLON.Vector3(-ROOM_OFFSET, 0, ROOM_OFFSET),
-    viewPosition: new BABYLON.Vector3(-10.8, PLAYER_HEIGHT, 10.8),
+    position: new BABYLON.Vector3(-17, 0, 17),
+    viewPosition: new BABYLON.Vector3(-12.8, PLAYER_HEIGHT, 12.8),
   },
   {
     id: "drivingSim",
@@ -312,10 +357,230 @@ const projects: ProjectData[] = [
       "Le coeur du travail consistait a faire tenir ensemble precision, robustesse et ressenti credible sur une installation physique exigeante.",
     accent: "Exposition 04",
     color: new BABYLON.Color3(1.0, 0.35, 0.35),
-    position: new BABYLON.Vector3(ROOM_OFFSET, 0, ROOM_OFFSET),
-    viewPosition: new BABYLON.Vector3(10.8, PLAYER_HEIGHT, 10.8),
+    position: new BABYLON.Vector3(42, 0, 42),
+    viewPosition: new BABYLON.Vector3(15.8, PLAYER_HEIGHT, 15.8),
   },
 ];
+
+const projectTextByLanguage: Record<AppLanguage, Record<string, ProjectTextContent>> = {
+  fr: {
+    survivorSlime: {
+      title: "Survivor Slime",
+      subtitle: "FPS roguelike a vagues sous Unreal Engine 5",
+      description:
+        "FPS roguelike base sur des vagues d'ennemis dans lequel le joueur incarne un agent municipal intergalactique charge de nettoyer des zones infectees par une matiere vivante instable.\n\nCore loop\n- entrer dans une zone\n- survivre aux vagues de slimes\n- gerer les merges ennemis\n- recuperer recompenses et progression\n- encaisser l'escalade de difficulte jusqu'a l'extraction ou la mort\n\nMecanique cle - Merge system\n- 3 slimes identiques et de meme power fusionnent\n- la puissance evolue par paliers (1 -> 4 -> 16 -> ...)\n- la taille, les HP et le niveau de menace augmentent\n- un cooldown de merge protege la lisibilite du systeme\n\nA la mort d'un slime fusionne\n- spawn de A slimes gris\n- ces slimes gris ne fusionnent pas\n- ils servent de fallback vers l'etat de base",
+      engine: "Unreal Engine 5",
+      focus: "Merge system, horde combat, architecture IA scalable, roguelike loop",
+      context: "Projet de fin d'etude de master",
+      role: "Gameplay programmer, AI architecture, combat systems, VFX gameplay",
+      year: "2025/2026",
+      stack: "UE5, Blueprints, Behavior Trees, NavMesh, Niagara, optimisation",
+      atmosphere:
+        "Piliers du gameplay\n- escalade systemique: merge -> menace exponentielle\n- lisibilite et controle: VFX clairs, comportements distincts\n- gameplay nerveux: FPS rapide et gestion de horde\n- rejouabilite roguelike\n\nArchitecture IA\n- BP_EnemyMain derive de Character\n- navigation via NavMesh\n- Behavior Tree simple avec une task Move unique\n- chaque slime decide comment se deplacer: crawl, jump, super jump, dash ou glide selon sa variante\n\nRefonte du systeme ennemi\n- passage a une architecture scalable\n- resolution des problemes de physique et de navigation\n- hop system propre via LaunchCharacter, OnLanded et timers\n- Mega Jump AOE avec preview Niagara, impact et knockback joueur\n- VFX lisibles et performants sans tick global",
+      accent: "Exposition 01",
+    },
+    fantasyMobile: {
+      title: "Fantasy Mobile Multiplayer",
+      subtitle: "Jeu medieval-fantasy multijoueur pense pour mobile",
+      description:
+        "Un projet centre sur la replication, l'interface et les contraintes de performance, avec une attention particuliere portee a la fluidite d'experience sur des appareils limites.",
+      engine: "Unreal Engine 5",
+      focus: "Replication, UI, mobile optimisation",
+      context: "Projet en equipe",
+      role: "Gameplay programmer / UI / reseau",
+      year: "2024-2025",
+      stack: "UE5, replication, widgets, profiling",
+      atmosphere:
+        "L'enjeu etait de garder une sensation de monde partage tout en preservant de la clarte et une bonne tenue framerate sur mobile.",
+      accent: "Exposition 02",
+    },
+    vrCooking: {
+      title: "VR Cooking Multiplayer",
+      subtitle: "Jeu de cuisine coop en VR sous Unity",
+      description:
+        "Une production orientee interactions, objets manipulables et cooperation, ou la clarte UX compte autant que la sensation physique des gestes en VR.",
+      engine: "Unity",
+      focus: "VR interactions, multiplayer, UX",
+      context: "Projet en equipe",
+      role: "Gameplay / interactions / integration",
+      year: "2023-2024",
+      stack: "Unity, XR, interactions, prototypage",
+      atmosphere:
+        "La reussite passait par une gestuelle satisfaisante et par une lecture immediate des outils, ingredients et actions en espace partage.",
+      accent: "Exposition 03",
+    },
+    drivingSim: {
+      title: "Ultra Realistic Driving Simulator",
+      subtitle: "Simulation de conduite temps reel sur rig physique",
+      description:
+        "Un projet professionnel fortement oriente simulation, hardware, stabilite et performances. Une partie des medias reste non partageable mais l'experience technique est centrale.",
+      engine: "Unreal Engine",
+      focus: "Simulation, hardware, performance, pipeline",
+      context: "Projet professionnel / NDA",
+      role: "Programmation gameplay temps reel",
+      year: "2025-2026",
+      stack: "UE, pipeline, hardware IO, optimisation",
+      atmosphere:
+        "Le coeur du travail consistait a faire tenir ensemble precision, robustesse et ressenti credible sur une installation physique exigeante.",
+      accent: "Exposition 04",
+    },
+  },
+  en: {
+    survivorSlime: {
+      title: "Survivor Slime",
+      subtitle: "Wave-based FPS roguelike in Unreal Engine 5",
+      description:
+        "A wave-based FPS roguelike where the player acts as an intergalactic municipal agent sent to clean areas contaminated by unstable living matter.\n\nCore loop\n- enter an infected zone\n- survive incoming slime waves\n- manage enemy merges\n- earn rewards and progression\n- endure the difficulty ramp until extraction or death\n\nCore mechanic - Merge system\n- 3 identical slimes with the same power merge together\n- power escalates in tiers (1 -> 4 -> 16 -> ...)\n- size, HP and threat level increase\n- a merge cooldown preserves readability\n\nWhen a merged slime dies\n- A gray slimes spawn\n- those gray slimes cannot merge\n- they act as a fallback to the base state",
+      engine: "Unreal Engine 5",
+      focus: "Merge system, horde combat, scalable AI architecture, roguelike loop",
+      context: "Master's final project",
+      role: "Gameplay programmer, AI architecture, combat systems, gameplay VFX",
+      year: "2025/2026",
+      stack: "UE5, Blueprints, Behavior Trees, NavMesh, Niagara, optimization",
+      atmosphere:
+        "Gameplay pillars\n- systemic escalation: merge -> exponential threat\n- readability and control: clear VFX, distinct behaviors\n- intense gameplay: fast FPS combat and horde management\n- roguelike replayability\n\nAI architecture\n- BP_EnemyMain derived from Character\n- navigation through NavMesh\n- simple Behavior Tree with a single Move task\n- each slime decides how to move: crawl, jump, super jump, dash or glide depending on its variant\n\nEnemy system refactor\n- moved to a scalable architecture\n- solved physics and navigation issues\n- clean hop system through LaunchCharacter, OnLanded and timers\n- Mega Jump AOE with Niagara preview, impact and player knockback\n- readable and performant VFX without a global tick",
+      accent: "Exhibit 01",
+    },
+    fantasyMobile: {
+      title: "Fantasy Mobile Multiplayer",
+      subtitle: "Medieval fantasy multiplayer game designed for mobile",
+      description:
+        "A project focused on replication, interface design and performance constraints, with special attention paid to a smooth experience on limited mobile devices.",
+      engine: "Unreal Engine 5",
+      focus: "Replication, UI, mobile optimization",
+      context: "Team project",
+      role: "Gameplay programmer / UI / networking",
+      year: "2024-2025",
+      stack: "UE5, replication, widgets, profiling",
+      atmosphere:
+        "The main challenge was to preserve a convincing shared-world feeling while keeping the experience readable and performant on mobile hardware.",
+      accent: "Exhibit 02",
+    },
+    vrCooking: {
+      title: "VR Cooking Multiplayer",
+      subtitle: "Co-op VR cooking game in Unity",
+      description:
+        "A production centered on interactions, manipulable objects and cooperation, where UX clarity matters as much as the physical feel of gestures in VR.",
+      engine: "Unity",
+      focus: "VR interactions, multiplayer, UX",
+      context: "Team project",
+      role: "Gameplay / interactions / integration",
+      year: "2023-2024",
+      stack: "Unity, XR, interactions, prototyping",
+      atmosphere:
+        "Success relied on satisfying gesture design and immediate readability for tools, ingredients and player actions inside a shared space.",
+      accent: "Exhibit 03",
+    },
+    drivingSim: {
+      title: "Ultra Realistic Driving Simulator",
+      subtitle: "Real-time driving simulation on a physical rig",
+      description:
+        "A professional project heavily focused on simulation, hardware integration, stability and performance. Some media cannot be shared, but the technical experience is central.",
+      engine: "Unreal Engine",
+      focus: "Simulation, hardware, performance, pipeline",
+      context: "Professional project / NDA",
+      role: "Real-time gameplay programming",
+      year: "2025-2026",
+      stack: "UE, pipeline, hardware I/O, optimization",
+      atmosphere:
+        "The core challenge was making precision, robustness and believable feel coexist on a demanding physical installation.",
+      accent: "Exhibit 04",
+    },
+  },
+};
+
+const LANGUAGE_STORAGE_KEY = "portfolio-museum-language";
+
+const uiText = {
+  fr: {
+    htmlLang: "fr",
+    languageToggle: "EN",
+    brandEyebrow: "Gameplay Programmer Portfolio",
+    introCopy:
+      "Portfolio interactif consacre a la programmation gameplay, aux systemes temps reel et a la mise en scene de projets techniques.",
+    overviewTrigger: "Pas le temps pour jouer ? Clique ici",
+    closePanel: "Masquer la fiche",
+    heroEyebrow: "Hall central",
+    heroTitle: "Visite libre en vue FPS.",
+    heroBody:
+      "Clique dans la scene pour capturer la souris, deplace-toi en ZQSD ou WASD, maintiens Shift pour sprinter, Space pour sauter, puis vise un stand et appuie sur E pour ouvrir sa fiche.",
+    combatEyebrow: "Survivor Slime",
+    combatTitle: "Arc Blaster",
+    combatDefault:
+      "Clic gauche pour tirer. Les slimes continuent de repop tant que tu restes dans l'arene.",
+    cookingEyebrow: "VR Cooking",
+    cookingTitle: "Service burgers",
+    cookingRushStable: "Cuisine stable",
+    cookingComboBase: "Combo x1",
+    cookingHeldEmpty: "Mains vides",
+    cookingHintDefault: "Vise une station et clique ou appuie sur E pour interagir.",
+    drivingEyebrow: "DrivingSim",
+    drivingTitle: "Urban Test Loop",
+    drivingModeOnFoot: "A pied",
+    drivingHintDefault:
+      "Approche-toi de la voiture et clique ou appuie sur E pour prendre le volant.",
+    projectVideoEyebrow: "Presentation video",
+    projectVideoFrameLabel: "Trailer / gameplay capture",
+    metaEngine: "Moteur",
+    metaFocus: "Focus",
+    metaContext: "Contexte",
+    metaRole: "Role",
+    metaYear: "Periode",
+    metaStack: "Stack",
+    overviewEyebrow: "Fast Track",
+    overviewTitle: "Tous les projets en un coup d'oeil",
+    overviewBody:
+      "Une lecture rapide du portfolio si tu n'as pas le temps de faire la visite interactive.",
+    closeOverview: "Fermer",
+    hintCapture: "Clic scene pour capturer la souris",
+    hintMove: "ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter",
+    hintOpen: "E pour ouvrir, Echap pour liberer",
+  },
+  en: {
+    htmlLang: "en",
+    languageToggle: "FR",
+    brandEyebrow: "Gameplay Programmer Portfolio",
+    introCopy:
+      "Interactive portfolio dedicated to gameplay programming, real-time systems and the staging of technical projects.",
+    overviewTrigger: "No time to play? Click here",
+    closePanel: "Hide project sheet",
+    heroEyebrow: "Central hall",
+    heroTitle: "Free-roam FPS visit.",
+    heroBody:
+      "Click in the scene to capture the mouse, move with ZQSD or WASD, hold Shift to sprint, Space to jump, then aim at a stand and press E to open its sheet.",
+    combatEyebrow: "Survivor Slime",
+    combatTitle: "Arc Blaster",
+    combatDefault:
+      "Left click to shoot. Slimes keep respawning as long as you stay inside the arena.",
+    cookingEyebrow: "VR Cooking",
+    cookingTitle: "Burger service",
+    cookingRushStable: "Kitchen stable",
+    cookingComboBase: "Combo x1",
+    cookingHeldEmpty: "Hands empty",
+    cookingHintDefault: "Aim at a station and click or press E to interact.",
+    drivingEyebrow: "DrivingSim",
+    drivingTitle: "Urban Test Loop",
+    drivingModeOnFoot: "On foot",
+    drivingHintDefault:
+      "Get close to the car and click or press E to take the wheel.",
+    projectVideoEyebrow: "Video presentation",
+    projectVideoFrameLabel: "Trailer / gameplay capture",
+    metaEngine: "Engine",
+    metaFocus: "Focus",
+    metaContext: "Context",
+    metaRole: "Role",
+    metaYear: "Period",
+    metaStack: "Stack",
+    overviewEyebrow: "Fast Track",
+    overviewTitle: "All projects at a glance",
+    overviewBody:
+      "A quick read-through of the portfolio if you do not have time for the interactive visit.",
+    closeOverview: "Close",
+    hintCapture: "Click scene to capture the mouse",
+    hintMove: "ZQSD / WASD to move, Shift to sprint, Space to jump",
+    hintOpen: "E to open, Escape to release",
+  },
+} as const;
 
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const engine = new BABYLON.Engine(canvas, true, {
@@ -324,14 +589,25 @@ const engine = new BABYLON.Engine(canvas, true, {
 });
 
 const projectRail = document.getElementById("projectRail") as HTMLDivElement;
+const languageToggle = document.getElementById("languageToggle") as HTMLButtonElement;
+const brandEyebrow = document.getElementById("brandEyebrow") as HTMLParagraphElement;
+const introCopy = document.getElementById("introCopy") as HTMLParagraphElement;
 const heroPanel = document.getElementById("heroPanel") as HTMLDivElement;
+const heroEyebrow = document.getElementById("heroEyebrow") as HTMLParagraphElement;
+const heroTitle = document.getElementById("heroTitle") as HTMLHeadingElement;
+const heroBody = document.getElementById("heroBody") as HTMLParagraphElement;
 const combatHud = document.getElementById("combatHud") as HTMLDivElement;
+const combatEyebrow = document.getElementById("combatEyebrow") as HTMLParagraphElement;
+const combatTitle = document.getElementById("combatTitle") as HTMLSpanElement;
 const projectPanel = document.getElementById("projectPanel") as HTMLDivElement;
 const projectPanelBody = projectPanel.querySelector(".panel-body") as HTMLDivElement;
 const closePanelBtn = document.getElementById("closePanel") as HTMLButtonElement;
 const overviewTrigger = document.getElementById("overviewTrigger") as HTMLButtonElement;
 const projectsOverview = document.getElementById("projectsOverview") as HTMLDivElement;
 const closeOverviewBtn = document.getElementById("closeOverview") as HTMLButtonElement;
+const overviewEyebrow = document.getElementById("overviewEyebrow") as HTMLParagraphElement;
+const overviewTitle = document.getElementById("overviewTitle") as HTMLHeadingElement;
+const overviewBody = document.getElementById("overviewBody") as HTMLParagraphElement;
 const overviewList = document.getElementById("overviewList") as HTMLDivElement;
 const crosshair = document.getElementById("crosshair") as HTMLDivElement;
 const statusPill = document.getElementById("statusPill") as HTMLDivElement;
@@ -339,17 +615,33 @@ const combatScore = document.getElementById("combatScore") as HTMLSpanElement;
 const combatStatus = document.getElementById("combatStatus") as HTMLParagraphElement;
 const combatPopup = document.getElementById("combatPopup") as HTMLDivElement;
 const cookingHud = document.getElementById("cookingHud") as HTMLDivElement;
+const cookingEyebrow = document.getElementById("cookingEyebrow") as HTMLParagraphElement;
+const cookingTitle = document.getElementById("cookingTitle") as HTMLSpanElement;
 const cookingScore = document.getElementById("cookingScore") as HTMLSpanElement;
 const cookingRush = document.getElementById("cookingRush") as HTMLSpanElement;
 const cookingCombo = document.getElementById("cookingCombo") as HTMLSpanElement;
 const cookingHeld = document.getElementById("cookingHeld") as HTMLParagraphElement;
 const cookingHint = document.getElementById("cookingHint") as HTMLParagraphElement;
 const cookingPopup = document.getElementById("cookingPopup") as HTMLDivElement;
+const drivingHud = document.getElementById("drivingHud") as HTMLDivElement;
+const drivingEyebrow = document.getElementById("drivingEyebrow") as HTMLParagraphElement;
+const drivingTitle = document.getElementById("drivingTitle") as HTMLSpanElement;
+const drivingSpeed = document.getElementById("drivingSpeed") as HTMLSpanElement;
+const drivingMode = document.getElementById("drivingMode") as HTMLSpanElement;
+const drivingHint = document.getElementById("drivingHint") as HTMLParagraphElement;
 
+const projectVideoEyebrow = document.getElementById("projectVideoEyebrow") as HTMLParagraphElement;
 const projectKicker = document.getElementById("projectKicker") as HTMLParagraphElement;
 const projectTitle = document.getElementById("projectTitle") as HTMLHeadingElement;
 const projectSubtitle = document.getElementById("projectSubtitle") as HTMLParagraphElement;
 const projectDescription = document.getElementById("projectDescription") as HTMLParagraphElement;
+const projectVideoFrameLabel = document.getElementById("projectVideoFrameLabel") as HTMLSpanElement;
+const metaEngineLabel = document.getElementById("metaEngineLabel") as HTMLSpanElement;
+const metaFocusLabel = document.getElementById("metaFocusLabel") as HTMLSpanElement;
+const metaContextLabel = document.getElementById("metaContextLabel") as HTMLSpanElement;
+const metaRoleLabel = document.getElementById("metaRoleLabel") as HTMLSpanElement;
+const metaYearLabel = document.getElementById("metaYearLabel") as HTMLSpanElement;
+const metaStackLabel = document.getElementById("metaStackLabel") as HTMLSpanElement;
 const projectEngine = document.getElementById("projectEngine") as HTMLSpanElement;
 const projectFocus = document.getElementById("projectFocus") as HTMLSpanElement;
 const projectContext = document.getElementById("projectContext") as HTMLSpanElement;
@@ -359,10 +651,14 @@ const projectStack = document.getElementById("projectStack") as HTMLSpanElement;
 const projectAtmosphere = document.getElementById("projectAtmosphere") as HTMLQuoteElement;
 const projectVideoTitle = document.getElementById("projectVideoTitle") as HTMLDivElement;
 const projectVideoNote = document.getElementById("projectVideoNote") as HTMLSpanElement;
+const hintCapture = document.getElementById("hintCapture") as HTMLSpanElement;
+const hintMove = document.getElementById("hintMove") as HTMLSpanElement;
+const hintOpen = document.getElementById("hintOpen") as HTMLSpanElement;
 
 const standMap = new Map<string, CreatedStand>();
 const cardMap = new Map<string, HTMLButtonElement>();
 const rockMaterialCache = new Map<string, BABYLON.PBRMaterial>();
+const localeRefreshers = new Set<() => void>();
 
 let activeProjectId: string | null = null;
 let hoveredProjectId: string | null = null;
@@ -372,11 +668,133 @@ let playerCamera: BABYLON.UniversalCamera | null = null;
 let isPointerLocked = false;
 let isInSlimeCombatZone = false;
 let isInVRCookingZone = false;
+let isInDrivingSimZone = false;
+let isDrivingVehicle = false;
 let combatPopupHideAt = 0;
 let cookingPopupHideAt = 0;
+let currentLanguage: AppLanguage =
+  localStorage.getItem(LANGUAGE_STORAGE_KEY) === "en" ? "en" : "fr";
 
 function rgbString(color: BABYLON.Color3) {
   return `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+}
+
+function moveToward(current: number, target: number, maxDelta: number) {
+  if (Math.abs(target - current) <= maxDelta) {
+    return target;
+  }
+
+  return current + Math.sign(target - current) * maxDelta;
+}
+
+function registerLocaleRefresher(refresher: () => void) {
+  localeRefreshers.add(refresher);
+}
+
+function getCurrentUiText() {
+  return uiText[currentLanguage];
+}
+
+function getProjectText(project: ProjectData) {
+  return projectTextByLanguage[currentLanguage][project.id];
+}
+
+function getProjectVideoTitle(project: ProjectData) {
+  return currentLanguage === "fr"
+    ? project.id === "survivorSlime"
+      ? "Trailer Survivor Slime"
+      : `Presentation ${getProjectText(project).title}`
+    : project.id === "survivorSlime"
+      ? "Survivor Slime trailer"
+      : `${getProjectText(project).title} presentation`;
+}
+
+function getProjectVideoNote(project: ProjectData) {
+  if (project.id === "survivorSlime") {
+    return currentLanguage === "fr"
+      ? "Zone prevue pour integrer une video de gameplay ou une bande-annonce du prototype."
+      : "Reserved area for gameplay footage or a prototype trailer.";
+  }
+
+  return currentLanguage === "fr"
+    ? "Zone prevue pour integrer une video de presentation du projet."
+    : "Reserved area for an embedded project presentation video.";
+}
+
+function applyStaticLanguage() {
+  const ui = getCurrentUiText();
+  document.documentElement.lang = ui.htmlLang;
+  languageToggle.textContent = ui.languageToggle;
+  brandEyebrow.textContent = ui.brandEyebrow;
+  introCopy.textContent = ui.introCopy;
+  overviewTrigger.textContent = ui.overviewTrigger;
+  closePanelBtn.textContent = ui.closePanel;
+  heroEyebrow.textContent = ui.heroEyebrow;
+  heroTitle.textContent = ui.heroTitle;
+  heroBody.textContent = ui.heroBody;
+  combatEyebrow.textContent = ui.combatEyebrow;
+  combatTitle.textContent = ui.combatTitle;
+  cookingEyebrow.textContent = ui.cookingEyebrow;
+  cookingTitle.textContent = ui.cookingTitle;
+  if (!cookingHud.classList.contains("hidden")) {
+    if (cookingHeld.textContent === "" || cookingHeld.textContent === uiText.fr.cookingHeldEmpty || cookingHeld.textContent === uiText.en.cookingHeldEmpty) {
+      cookingHeld.textContent = ui.cookingHeldEmpty;
+    }
+  } else {
+    cookingHeld.textContent = ui.cookingHeldEmpty;
+  }
+  if (cookingHint.textContent === "" || !isInVRCookingZone) {
+    cookingHint.textContent = ui.cookingHintDefault;
+  }
+  drivingEyebrow.textContent = ui.drivingEyebrow;
+  drivingTitle.textContent = ui.drivingTitle;
+  if (!isInDrivingSimZone && !isDrivingVehicle) {
+    drivingMode.textContent = ui.drivingModeOnFoot;
+    drivingHint.textContent = ui.drivingHintDefault;
+  }
+  projectVideoEyebrow.textContent = ui.projectVideoEyebrow;
+  projectVideoFrameLabel.textContent = ui.projectVideoFrameLabel;
+  metaEngineLabel.textContent = ui.metaEngine;
+  metaFocusLabel.textContent = ui.metaFocus;
+  metaContextLabel.textContent = ui.metaContext;
+  metaRoleLabel.textContent = ui.metaRole;
+  metaYearLabel.textContent = ui.metaYear;
+  metaStackLabel.textContent = ui.metaStack;
+  overviewEyebrow.textContent = ui.overviewEyebrow;
+  overviewTitle.textContent = ui.overviewTitle;
+  overviewBody.textContent = ui.overviewBody;
+  closeOverviewBtn.textContent = ui.closeOverview;
+  hintCapture.textContent = ui.hintCapture;
+  hintMove.textContent = ui.hintMove;
+  hintOpen.textContent = ui.hintOpen;
+  if (!combatHud.classList.contains("hidden")) {
+    if (combatStatus.textContent === "" || combatStatus.textContent === uiText.fr.combatDefault || combatStatus.textContent === uiText.en.combatDefault) {
+      combatStatus.textContent = ui.combatDefault;
+    }
+  } else {
+    combatStatus.textContent = ui.combatDefault;
+  }
+}
+
+function setLanguage(language: AppLanguage) {
+  if (currentLanguage === language) {
+    return;
+  }
+
+  currentLanguage = language;
+  localStorage.setItem(LANGUAGE_STORAGE_KEY, currentLanguage);
+  applyStaticLanguage();
+  renderProjectsOverview();
+  createProjectCards();
+  localeRefreshers.forEach((refresher) => refresher());
+  if (activeProjectId && !projectPanel.classList.contains("hidden")) {
+    const activeProject = projects.find((project) => project.id === activeProjectId);
+    if (activeProject) {
+      openProjectPanel(activeProject);
+    }
+  } else {
+    updateStatus(getFreeRoamStatusMessage());
+  }
 }
 
 function updateStatus(message: string) {
@@ -389,21 +807,44 @@ function isOverviewOpen() {
 
 function syncCrosshairVisibility() {
   const panelOpen = !projectPanel.classList.contains("hidden");
-  crosshair.classList.toggle("hidden", panelOpen || isOverviewOpen() || !isPointerLocked);
+  crosshair.classList.toggle(
+    "hidden",
+    panelOpen || isOverviewOpen() || !isPointerLocked || isDrivingVehicle
+  );
 }
 
 function getFreeRoamStatusMessage() {
+  if (isPointerLocked && isDrivingVehicle) {
+    return currentLanguage === "fr"
+      ? "Zone DrivingSim - ZQSD ou WASD pour conduire, Space pour freiner, E pour sortir du vehicule"
+      : "DrivingSim zone - ZQSD or WASD to drive, Space to brake, E to exit the vehicle";
+  }
+
   if (isPointerLocked && isInSlimeCombatZone) {
-    return "Zone Survivor Slime - clic gauche pour tirer, Shift pour sprinter, Space pour sauter";
+    return currentLanguage === "fr"
+      ? "Zone Survivor Slime - clic gauche pour tirer, Shift pour sprinter, Space pour sauter"
+      : "Survivor Slime zone - left click to shoot, Shift to sprint, Space to jump";
   }
 
   if (isPointerLocked && isInVRCookingZone) {
-    return "Zone VR Cooking - vise une station et clique ou appuie sur E pour cuisiner";
+    return currentLanguage === "fr"
+      ? "Zone VR Cooking - vise une station et clique ou appuie sur E pour cuisiner"
+      : "VR Cooking zone - aim at a station and click or press E to cook";
+  }
+
+  if (isPointerLocked && isInDrivingSimZone) {
+    return currentLanguage === "fr"
+      ? "Zone DrivingSim - approche-toi de la voiture et clique ou appuie sur E pour prendre le volant"
+      : "DrivingSim zone - get close to the car and click or press E to take the wheel";
   }
 
   return isPointerLocked
-    ? "Visite libre active - Shift pour sprinter, Space pour sauter"
-    : "Clique dans la scene pour entrer en mode visite.";
+    ? currentLanguage === "fr"
+      ? "Visite libre active - Shift pour sprinter, Space pour sauter"
+      : "Free roam active - Shift to sprint, Space to jump"
+    : currentLanguage === "fr"
+      ? "Clique dans la scene pour entrer en mode visite."
+      : "Click in the scene to enter free roam.";
 }
 
 function showCombatPopup(message: string) {
@@ -443,25 +884,28 @@ function formatOverviewText(value: string) {
 function renderProjectsOverview() {
   overviewList.innerHTML = projects
     .map(
-      (project) => `
+      (project) => {
+        const text = getProjectText(project);
+        return `
         <article class="overview-card">
-          <p class="eyebrow">${project.accent}</p>
-          <h3>${project.title}</h3>
-          <p class="overview-card-subtitle">${project.subtitle}</p>
-          <p class="overview-card-description">${formatOverviewText(project.description)}</p>
+          <p class="eyebrow">${text.accent}</p>
+          <h3>${text.title}</h3>
+          <p class="overview-card-subtitle">${text.subtitle}</p>
+          <p class="overview-card-description">${formatOverviewText(text.description)}</p>
 
           <div class="overview-card-meta">
-            <p><strong>Moteur</strong><span>${project.engine}</span></p>
-            <p><strong>Focus</strong><span>${project.focus}</span></p>
-            <p><strong>Contexte</strong><span>${project.context}</span></p>
-            <p><strong>Role</strong><span>${project.role}</span></p>
-            <p><strong>Periode</strong><span>${project.year}</span></p>
-            <p><strong>Stack</strong><span>${project.stack}</span></p>
+            <p><strong>${getCurrentUiText().metaEngine}</strong><span>${text.engine}</span></p>
+            <p><strong>${getCurrentUiText().metaFocus}</strong><span>${text.focus}</span></p>
+            <p><strong>${getCurrentUiText().metaContext}</strong><span>${text.context}</span></p>
+            <p><strong>${getCurrentUiText().metaRole}</strong><span>${text.role}</span></p>
+            <p><strong>${getCurrentUiText().metaYear}</strong><span>${text.year}</span></p>
+            <p><strong>${getCurrentUiText().metaStack}</strong><span>${text.stack}</span></p>
           </div>
 
-          <blockquote class="overview-card-quote">${formatOverviewText(project.atmosphere)}</blockquote>
+          <blockquote class="overview-card-quote">${formatOverviewText(text.atmosphere)}</blockquote>
         </article>
-      `
+      `;
+      }
     )
     .join("");
 }
@@ -479,21 +923,20 @@ function openProjectPanel(project: ProjectData) {
     document.exitPointerLock();
   }
 
-  projectKicker.textContent = project.accent;
-  projectTitle.textContent = project.title;
-  projectSubtitle.textContent = project.subtitle;
-  projectDescription.textContent = project.description;
-  projectEngine.textContent = project.engine;
-  projectFocus.textContent = project.focus;
-  projectContext.textContent = project.context;
-  projectRole.textContent = project.role;
-  projectYear.textContent = project.year;
-  projectStack.textContent = project.stack;
-  projectAtmosphere.textContent = project.atmosphere;
-  projectVideoTitle.textContent = project.id === "survivorSlime" ? "Trailer Survivor Slime" : `Presentation ${project.title}`;
-  projectVideoNote.textContent = project.id === "survivorSlime"
-    ? "Zone prevue pour integrer une video de gameplay ou une bande-annonce du prototype."
-    : "Zone prevue pour integrer une video de presentation du projet.";
+  const text = getProjectText(project);
+  projectKicker.textContent = text.accent;
+  projectTitle.textContent = text.title;
+  projectSubtitle.textContent = text.subtitle;
+  projectDescription.textContent = text.description;
+  projectEngine.textContent = text.engine;
+  projectFocus.textContent = text.focus;
+  projectContext.textContent = text.context;
+  projectRole.textContent = text.role;
+  projectYear.textContent = text.year;
+  projectStack.textContent = text.stack;
+  projectAtmosphere.textContent = text.atmosphere;
+  projectVideoTitle.textContent = getProjectVideoTitle(project);
+  projectVideoNote.textContent = getProjectVideoNote(project);
 
   heroPanel.classList.add("hidden");
   projectPanel.classList.remove("hidden");
@@ -501,7 +944,7 @@ function openProjectPanel(project: ProjectData) {
   projectPanel.scrollTop = 0;
   projectPanelBody.scrollTop = 0;
   syncCrosshairVisibility();
-  updateStatus(`Focus: ${project.title}`);
+  updateStatus(`Focus: ${getProjectText(project).title}`);
 }
 
 function closeProjectPanel() {
@@ -524,7 +967,11 @@ function openProjectsOverview() {
   heroPanel.classList.add("hidden");
   projectsOverview.classList.remove("hidden");
   syncCrosshairVisibility();
-  updateStatus("Vue rapide du portfolio ouverte.");
+  updateStatus(
+    currentLanguage === "fr"
+      ? "Vue rapide du portfolio ouverte."
+      : "Fast-track portfolio view opened."
+  );
 }
 
 function closeProjectsOverview() {
@@ -551,6 +998,9 @@ function openProjectInfo(projectId: string) {
 closePanelBtn.addEventListener("click", closeProjectPanel);
 overviewTrigger.addEventListener("click", openProjectsOverview);
 closeOverviewBtn.addEventListener("click", closeProjectsOverview);
+languageToggle.addEventListener("click", () => {
+  setLanguage(currentLanguage === "fr" ? "en" : "fr");
+});
 window.addEventListener("keydown", (event) => {
   if (event.key === "Escape") {
     if (isOverviewOpen()) {
@@ -561,32 +1011,43 @@ window.addEventListener("keydown", (event) => {
   }
 });
 
+applyStaticLanguage();
+
 function createProjectCards() {
   projectRail.innerHTML = "";
+  cardMap.clear();
 
   projects.forEach((project, index) => {
+    const text = getProjectText(project);
     const button = document.createElement("button");
     button.type = "button";
     button.className = "project-card";
     button.dataset.projectId = project.id;
     button.innerHTML = `
-      <strong>${project.title}</strong>
-      <span>${project.subtitle}</span>
-      <em>${String(index + 1).padStart(2, "0")} / ${project.engine}</em>
+      <strong>${text.title}</strong>
+      <span>${text.subtitle}</span>
+      <em>${String(index + 1).padStart(2, "0")} / ${text.engine}</em>
     `;
 
     button.addEventListener("mouseenter", () => {
       hoveredProjectId = project.id;
-      updateStatus(`Survol UI: ${project.title}`);
+      updateStatus(
+        currentLanguage === "fr"
+          ? `Survol UI: ${text.title}`
+          : `UI hover: ${text.title}`
+      );
     });
 
     button.addEventListener("mouseleave", () => {
       hoveredProjectId = null;
-      updateStatus(
-        activeProjectId
-          ? `Focus: ${project.title}`
-          : getFreeRoamStatusMessage()
-      );
+      if (activeProjectId) {
+        const activeProject = projects.find((entry) => entry.id === activeProjectId);
+        if (activeProject) {
+          updateStatus(`Focus: ${getProjectText(activeProject).title}`);
+          return;
+        }
+      }
+      updateStatus(getFreeRoamStatusMessage());
     });
 
     button.addEventListener("click", () => {
@@ -1031,7 +1492,7 @@ function createVrCookingZone(scene: BABYLON.Scene, project: ProjectData) {
   warmFill.diffuse = new BABYLON.Color3(1, 0.86, 0.68);
   warmFill.intensity = 0.55;
 
-  for (const offset of [-2.6, 0, 2.6]) {
+  for (const offset of [-3.4, 0, 1.95]) {
     createKitchenPendantLight(
       scene,
       `${project.id}_pendant_${offset}`,
@@ -1090,6 +1551,8 @@ function createVRCookingSystem(
   let nextOrderId = 1;
   let comboStreak = 0;
   let comboExpiresAt = 0;
+  let unlockedClientCount = VR_COOKING_INITIAL_CLIENT_COUNT;
+  let cookingActiveElapsedMs = 0;
 
   const resetInventory = () => {
     inventory.bun = false;
@@ -1110,63 +1573,95 @@ function createVRCookingSystem(
     !inventory.tomato &&
     inventory.burger === null;
 
-  const recipeBook: Record<
+  const getIngredientLabels = () =>
+    currentLanguage === "fr"
+      ? {
+          bun: "pain burger",
+          bunShort: "pain",
+          rawSteak: "steak cru",
+          cookedSteak: "steak cuit",
+          cheese: "fromage",
+          lettuce: "salade",
+          tomato: "tomate",
+        }
+      : {
+          bun: "burger bun",
+          bunShort: "bun",
+          rawSteak: "raw patty",
+          cookedSteak: "cooked patty",
+          cheese: "cheese",
+          lettuce: "lettuce",
+          tomato: "tomato",
+        };
+
+  const recipeDefinitions: Record<
     VRCookingOrderType,
     {
-      title: string;
-      ingredients: string[];
+      titles: Record<AppLanguage, string>;
+      ingredientKeys: Array<keyof ReturnType<typeof getIngredientLabels>>;
       reward: number;
       tint: BABYLON.Color3;
     }
   > = {
     classic: {
-      title: "Burger classique",
-      ingredients: ["pain burger", "steak cuit"],
+      titles: { fr: "Burger classique", en: "Classic burger" },
+      ingredientKeys: ["bun", "cookedSteak"],
       reward: 120,
       tint: new BABYLON.Color3(1, 0.76, 0.3),
     },
     cheese: {
-      title: "Cheeseburger",
-      ingredients: ["pain burger", "steak cuit", "fromage"],
+      titles: { fr: "Cheeseburger", en: "Cheeseburger" },
+      ingredientKeys: ["bun", "cookedSteak", "cheese"],
       reward: 145,
       tint: new BABYLON.Color3(1, 0.88, 0.32),
     },
     salad: {
-      title: "Burger salade",
-      ingredients: ["pain burger", "steak cuit", "salade"],
+      titles: { fr: "Burger salade", en: "Lettuce burger" },
+      ingredientKeys: ["bun", "cookedSteak", "lettuce"],
       reward: 150,
       tint: new BABYLON.Color3(0.34, 0.92, 0.3),
     },
     tomato: {
-      title: "Burger tomate",
-      ingredients: ["pain burger", "steak cuit", "tomate"],
+      titles: { fr: "Burger tomate", en: "Tomato burger" },
+      ingredientKeys: ["bun", "cookedSteak", "tomato"],
       reward: 145,
       tint: new BABYLON.Color3(1, 0.46, 0.36),
     },
     cheeseTomato: {
-      title: "Burger cheddar tomate",
-      ingredients: ["pain burger", "steak cuit", "fromage", "tomate"],
+      titles: { fr: "Burger cheddar tomate", en: "Cheddar tomato burger" },
+      ingredientKeys: ["bun", "cookedSteak", "cheese", "tomato"],
       reward: 175,
       tint: new BABYLON.Color3(1, 0.62, 0.34),
     },
     cheeseSalad: {
-      title: "Burger cheddar salade",
-      ingredients: ["pain burger", "steak cuit", "fromage", "salade"],
+      titles: { fr: "Burger cheddar salade", en: "Cheddar lettuce burger" },
+      ingredientKeys: ["bun", "cookedSteak", "cheese", "lettuce"],
       reward: 178,
       tint: new BABYLON.Color3(0.74, 0.92, 0.3),
     },
     fresh: {
-      title: "Burger fraicheur",
-      ingredients: ["pain burger", "steak cuit", "salade", "tomate"],
+      titles: { fr: "Burger fraicheur", en: "Fresh burger" },
+      ingredientKeys: ["bun", "cookedSteak", "lettuce", "tomato"],
       reward: 176,
       tint: new BABYLON.Color3(0.3, 0.9, 0.72),
     },
     deluxe: {
-      title: "Burger deluxe",
-      ingredients: ["pain burger", "steak cuit", "fromage", "salade", "tomate"],
+      titles: { fr: "Burger deluxe", en: "Deluxe burger" },
+      ingredientKeys: ["bun", "cookedSteak", "cheese", "lettuce", "tomato"],
       reward: 210,
       tint: new BABYLON.Color3(0.4, 1, 0.84),
     },
+  };
+
+  const getRecipeInfo = (type: VRCookingOrderType) => {
+    const ingredientLabels = getIngredientLabels();
+    const definition = recipeDefinitions[type];
+    return {
+      title: definition.titles[currentLanguage],
+      ingredients: definition.ingredientKeys.map((key) => ingredientLabels[key]),
+      reward: definition.reward,
+      tint: definition.tint,
+    };
   };
   const orderPool: VRCookingOrderType[] = [
     "classic",
@@ -1182,59 +1677,70 @@ function createVRCookingSystem(
 
   const getHeldLabel = () => {
     if (inventory.burger) {
-      return `Plateau : ${recipeBook[inventory.burger].title.toLowerCase()} pret a servir`;
+      return currentLanguage === "fr"
+        ? `Plateau : ${getRecipeInfo(inventory.burger).title.toLowerCase()} pret a servir`
+        : `Tray: ${getRecipeInfo(inventory.burger).title.toLowerCase()} ready to serve`;
     }
 
+    const ingredientLabels = getIngredientLabels();
     const items: string[] = [];
     if (inventory.bun) {
-      items.push("pain");
+      items.push(ingredientLabels.bunShort);
     }
     if (inventory.rawSteak) {
-      items.push("steak cru");
+      items.push(ingredientLabels.rawSteak);
     }
     if (inventory.cookedSteak) {
-      items.push("steak cuit");
+      items.push(ingredientLabels.cookedSteak);
     }
     if (inventory.cheese) {
-      items.push("fromage");
+      items.push(ingredientLabels.cheese);
     }
     if (inventory.lettuce) {
-      items.push("salade");
+      items.push(ingredientLabels.lettuce);
     }
     if (inventory.tomato) {
-      items.push("tomate");
+      items.push(ingredientLabels.tomato);
     }
 
-    return items.length > 0 ? `Plateau : ${items.join(" + ")}` : "Mains vides";
+    return items.length > 0
+      ? currentLanguage === "fr"
+        ? `Plateau : ${items.join(" + ")}`
+        : `Tray: ${items.join(" + ")}`
+      : getCurrentUiText().cookingHeldEmpty;
   };
 
-  const getOrderIngredients = (type: VRCookingOrderType) =>
-    recipeBook[type].ingredients;
+  const applyLocalizedOrder = (order: VRCookingOrder) => {
+    const recipe = getRecipeInfo(order.type);
+    order.title = recipe.title;
+    order.ingredients = recipe.ingredients;
+    order.reward = recipe.reward;
+  };
 
-  const createOrder = (now = performance.now()): VRCookingOrder => {
+  const createOrder = (): VRCookingOrder => {
     const type = orderPool[Math.floor(Math.random() * orderPool.length)];
+    const recipe = getRecipeInfo(type);
     return {
       id: nextOrderId++,
       type,
-      title: recipeBook[type].title,
-      ingredients: getOrderIngredients(type),
-      reward: recipeBook[type].reward,
+      title: recipe.title,
+      ingredients: recipe.ingredients,
+      reward: recipe.reward,
       timeLimitMs: VR_COOKING_ORDER_TIME_LIMIT * 1000,
-      expiresAt: now + VR_COOKING_ORDER_TIME_LIMIT * 1000,
+      remainingMs: VR_COOKING_ORDER_TIME_LIMIT * 1000,
     };
   };
 
-  const refillOrders = (now = performance.now()) => {
-    while (orderQueue.length < VR_COOKING_ORDER_COUNT) {
-      orderQueue.push(createOrder(now));
+  const refillOrders = () => {
+    while (orderQueue.length < unlockedClientCount) {
+      orderQueue.push(createOrder());
     }
   };
 
-  const getOrderTimeLeftMs = (order: VRCookingOrder, now: number) =>
-    Math.max(0, order.expiresAt - now);
+  const getOrderTimeLeftMs = (order: VRCookingOrder) => Math.max(0, order.remainingMs);
 
-  const getOrderUrgency = (order: VRCookingOrder, now: number) =>
-    1 - Math.min(1, getOrderTimeLeftMs(order, now) / order.timeLimitMs);
+  const getOrderUrgency = (order: VRCookingOrder) =>
+    1 - Math.min(1, getOrderTimeLeftMs(order) / order.timeLimitMs);
 
   const getComboBonus = () =>
     Math.min(
@@ -1282,12 +1788,70 @@ function createVRCookingSystem(
       `${name}_mat`,
       color.scale(0.18),
       color.scale(0.42),
-      0.88
+      0.24
     );
     if (hotspot.material instanceof BABYLON.StandardMaterial) {
       hotspot.material.disableLighting = true;
     }
     return hotspot;
+  };
+
+  const createCrateFrontLabel = (
+    name: string,
+    text: string | (() => string),
+    parent: BABYLON.Mesh,
+    _height: number,
+    depth: number,
+    tint: BABYLON.Color3,
+    side: "front" | "back" = "front"
+  ) => {
+    const texture = new BABYLON.DynamicTexture(
+      `${name}_labelTexture`,
+      { width: 384, height: 120 },
+      scene,
+      true
+    );
+    texture.hasAlpha = true;
+    const context = texture.getContext() as CanvasRenderingContext2D;
+    registerLocaleRefresher(() => {
+      const resolvedText = typeof text === "function" ? text() : text;
+      context.clearRect(0, 0, 384, 120);
+      context.fillStyle = "rgba(10, 12, 18, 0.92)";
+      context.fillRect(8, 8, 368, 104);
+      context.strokeStyle = rgbString(tint);
+      context.lineWidth = 3;
+      context.strokeRect(8, 8, 368, 104);
+      context.fillStyle = "rgba(244, 247, 255, 0.96)";
+      context.font = "700 34px Segoe UI";
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText(resolvedText, 192, 60);
+      texture.update();
+    });
+
+    const material = new BABYLON.StandardMaterial(`${name}_labelMat`, scene);
+    material.diffuseTexture = texture;
+    material.emissiveTexture = texture;
+    material.opacityTexture = texture;
+    material.disableLighting = true;
+    material.backFaceCulling = false;
+
+    const plane = BABYLON.MeshBuilder.CreatePlane(
+      `${name}_label`,
+      { width: 0.54, height: 0.16, sideOrientation: BABYLON.Mesh.FRONTSIDE },
+      scene
+    );
+    plane.parent = parent;
+    plane.position = new BABYLON.Vector3(
+      0,
+      0.01,
+      side === "back" ? depth * 0.5 + 0.016 : -depth * 0.5 - 0.016
+    );
+    plane.rotation.x = 0;
+    plane.rotation.y = side === "back" ? Math.PI : 0;
+    plane.isPickable = false;
+    plane.material = material;
+    return plane;
   };
 
   const boardTexture = new BABYLON.DynamicTexture(
@@ -1337,8 +1901,8 @@ function createVRCookingSystem(
   const updateClientVisuals = (now = performance.now()) => {
     clientSlots.forEach((slot, index) => {
       const order = orderQueue[index];
-      const tint = order ? recipeBook[order.type].tint : new BABYLON.Color3(1, 0.76, 0.3);
-      const urgency = order ? getOrderUrgency(order, now) : 0;
+      const tint = order ? recipeDefinitions[order.type].tint : new BABYLON.Color3(1, 0.76, 0.3);
+      const urgency = order ? getOrderUrgency(order) : 0;
       const pulse =
         order && urgency > 0.55
           ? 0.92 + Math.sin(now * 0.016 + index * 1.3) * (0.08 + urgency * 0.08)
@@ -1387,11 +1951,21 @@ function createVRCookingSystem(
     boardContext.font = "700 46px Segoe UI";
     boardContext.textAlign = "left";
     boardContext.textBaseline = "middle";
-    boardContext.fillText("COMMANDES BURGER", 94, 112);
+    boardContext.fillText(
+      currentLanguage === "fr" ? "COMMANDES BURGER" : "BURGER ORDERS",
+      94,
+      112
+    );
 
     boardContext.fillStyle = "rgba(221, 235, 255, 0.78)";
     boardContext.font = "500 24px Segoe UI";
-    boardContext.fillText("Cuisine VR - production, cuisson et service", 94, 150);
+    boardContext.fillText(
+      currentLanguage === "fr"
+        ? "Cuisine VR - production, cuisson et service"
+        : "VR kitchen - prep, cooking and service",
+      94,
+      150
+    );
 
     boardContext.textAlign = "right";
     boardContext.fillStyle = "rgba(127, 231, 203, 0.96)";
@@ -1401,21 +1975,32 @@ function createVRCookingSystem(
     boardContext.fillStyle = "rgba(206, 218, 240, 0.88)";
     boardContext.font = "600 24px Segoe UI";
     const grillText = grillReady
-      ? "Grill : steak cuit pret"
+      ? currentLanguage === "fr"
+        ? "Grill : steak cuit pret"
+        : "Grill: cooked patty ready"
       : grillActive
-        ? `Grill : ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
-        : "Grill : libre";
+        ? currentLanguage === "fr"
+          ? `Grill : ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
+          : `Grill: ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
+        : currentLanguage === "fr"
+          ? "Grill : libre"
+          : "Grill: idle";
     boardContext.fillText(grillText, 1186, 148);
+
+    const visibleOrderCount = Math.max(1, orderQueue.length);
+    const cardHeight = visibleOrderCount > 1 ? 248 : 278;
+    const cardGap = visibleOrderCount > 1 ? 24 : 0;
+    const cardStartY = visibleOrderCount > 1 ? 216 : 230;
 
     orderQueue.forEach((order, index) => {
       const x = 76;
-      const y = 216 + index * 272;
+      const y = cardStartY + index * (cardHeight + cardGap);
       const width = 1128;
-      const height = 220;
-      const timeLeftMs = getOrderTimeLeftMs(order, now);
-      const urgency = getOrderUrgency(order, now);
+      const height = cardHeight;
+      const timeLeftMs = getOrderTimeLeftMs(order);
+      const urgency = getOrderUrgency(order);
       const timeLeftSeconds = Math.ceil(timeLeftMs / 1000);
-      const tint = recipeBook[order.type].tint;
+      const tint = recipeDefinitions[order.type].tint;
       const timerColor =
         timeLeftMs <= VR_COOKING_ORDER_DANGER_TIME * 1000
           ? "rgba(255, 124, 124, 0.98)"
@@ -1442,16 +2027,20 @@ function createVRCookingSystem(
       boardContext.fillStyle = "rgba(127, 231, 203, 0.92)";
       boardContext.font = "700 26px Segoe UI";
       boardContext.textAlign = "left";
-      boardContext.fillText(`CLIENT ${String.fromCharCode(65 + index)}`, x + 26, y + 34);
+      boardContext.fillText(
+        `${currentLanguage === "fr" ? "CLIENT" : "CLIENT"} ${String.fromCharCode(65 + index)}`,
+        x + 26,
+        y + 34
+      );
 
       boardContext.fillStyle = "rgba(245, 248, 255, 0.98)";
       boardContext.font = "700 48px Segoe UI";
       boardContext.fillText(order.title, x + 26, y + 92);
 
       boardContext.fillStyle = "rgba(196, 210, 234, 0.88)";
-      boardContext.font = "500 28px Segoe UI";
+      boardContext.font = "600 22px Segoe UI";
       order.ingredients.forEach((ingredient, ingredientIndex) => {
-        boardContext.fillText(`- ${ingredient}`, x + 28, y + 142 + ingredientIndex * 34);
+        boardContext.fillText(`- ${ingredient}`, x + 28, y + 140 + ingredientIndex * 22);
       });
 
       boardContext.textAlign = "right";
@@ -1464,11 +2053,11 @@ function createVRCookingSystem(
       boardContext.fillText(`${timeLeftSeconds}s`, x + width - 28, y + 92);
 
       boardContext.fillStyle = "rgba(255, 255, 255, 0.08)";
-      boardContext.fillRect(x + 26, y + height - 26, width - 52, 10);
+      boardContext.fillRect(x + 26, y + height - 22, width - 52, 10);
       boardContext.fillStyle = timerColor;
       boardContext.fillRect(
         x + 26,
-        y + height - 26,
+        y + height - 22,
         (width - 52) * Math.max(0.06, timeLeftMs / order.timeLimitMs),
         10
       );
@@ -1478,11 +2067,27 @@ function createVRCookingSystem(
     boardContext.fillStyle = "rgba(168, 186, 212, 0.76)";
     boardContext.font = "500 24px Segoe UI";
     boardContext.fillText(
-      "Bacs infinis : pain, steak cru, fromage, salade, tomate | clic ou E pour interagir",
+      currentLanguage === "fr"
+        ? "Bacs infinis : pain, steak cru, fromage, salade, tomate | clic ou E pour interagir"
+        : "Infinite bins: bun, raw patty, cheese, lettuce, tomato | click or E to interact",
       76,
       812
     );
-    boardContext.fillText("Passe par le grill avant le montage puis sers au comptoir.", 76, 850);
+    const clientReleaseText =
+      unlockedClientCount < VR_COOKING_ORDER_COUNT
+        ? currentLanguage === "fr"
+          ? `Client B arrive dans ${Math.max(
+              0,
+              Math.ceil((VR_COOKING_SECOND_CLIENT_DELAY * 1000 - cookingActiveElapsedMs) / 1000)
+            )} s`
+          : `Client B arrives in ${Math.max(
+              0,
+              Math.ceil((VR_COOKING_SECOND_CLIENT_DELAY * 1000 - cookingActiveElapsedMs) / 1000)
+            )} s`
+        : currentLanguage === "fr"
+          ? "Deux postes clients actifs"
+          : "Two customer slots active";
+    boardContext.fillText(clientReleaseText, 76, 850);
 
     boardTexture.update();
     orderBoardDirty = false;
@@ -1490,9 +2095,17 @@ function createVRCookingSystem(
     updateClientVisuals(now);
   };
 
+  registerLocaleRefresher(() => {
+    orderQueue.forEach((order) => applyLocalizedOrder(order));
+    orderBoardDirty = true;
+    updateOrderBoard();
+    cookingHeld.textContent = getHeldLabel();
+    cookingHint.textContent = getHintForStation();
+  });
+
   const updateCookingHudState = (now: number) => {
     const nextExpiry = orderQueue.reduce((minTime, order) => {
-      return Math.min(minTime, getOrderTimeLeftMs(order, now));
+      return Math.min(minTime, getOrderTimeLeftMs(order));
     }, Number.POSITIVE_INFINITY);
     const hasUrgency = Number.isFinite(nextExpiry);
     const isWarning = hasUrgency && nextExpiry <= VR_COOKING_ORDER_WARNING_TIME * 1000;
@@ -1507,18 +2120,27 @@ function createVRCookingSystem(
     cookingCombo.classList.toggle("active", comboActive);
 
     if (!hasUrgency) {
-      cookingRush.textContent = "Cuisine stable";
+      cookingRush.textContent = getCurrentUiText().cookingRushStable;
     } else if (isDanger) {
-      cookingRush.textContent = `Urgence ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+      cookingRush.textContent =
+        currentLanguage === "fr"
+          ? `Urgence ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `Urgency ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     } else if (isWarning) {
-      cookingRush.textContent = `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+      cookingRush.textContent =
+        currentLanguage === "fr"
+          ? `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     } else {
-      cookingRush.textContent = `Prochaine commande ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+      cookingRush.textContent =
+        currentLanguage === "fr"
+          ? `Prochaine commande ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `Next order ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     }
 
     cookingCombo.textContent = comboActive
-      ? `Combo x${comboStreak} · ${comboSeconds}s`
-      : "Combo x1";
+      ? `Combo x${comboStreak} | ${comboSeconds}s`
+      : getCurrentUiText().cookingComboBase;
   };
 
   const applyStationHighlights = (now = performance.now()) => {
@@ -1528,11 +2150,11 @@ function createVRCookingSystem(
         (station.id === "grill" && grillReady) ||
         (station.id === "serve" && inventory.burger !== null);
       const pulse = 0.92 + Math.sin(now * 0.012 + station.id.length * 0.5) * 0.08;
-      const glowStrength = isFocused ? 1.36 : isPriority ? 0.74 + pulse * 0.32 : 0.52;
+      const glowStrength = isFocused ? 1.18 : isPriority ? 0.62 + pulse * 0.18 : 0.28;
       station.meshes.forEach((mesh) => {
         if (mesh.material instanceof BABYLON.StandardMaterial) {
           mesh.material.emissiveColor = station.emissiveColor.scale(glowStrength);
-          mesh.material.alpha = isFocused ? 0.98 : isPriority ? 0.9 + (pulse - 0.92) * 0.28 : 0.84;
+          mesh.material.alpha = isFocused ? 0.46 : isPriority ? 0.22 + (pulse - 0.92) * 0.12 : 0.08;
         }
       });
     });
@@ -1775,13 +2397,13 @@ function createVRCookingSystem(
 
     const showBurger = inventory.burger !== null;
     const burgerIngredients = inventory.burger
-      ? recipeBook[inventory.burger].ingredients
+      ? recipeDefinitions[inventory.burger].ingredientKeys
       : [];
     heldBurgerBottom.setEnabled(showBurger);
     heldBurgerPatty.setEnabled(showBurger);
-    heldBurgerCheese.setEnabled(showBurger && burgerIngredients.includes("fromage"));
-    heldBurgerLettuce.setEnabled(showBurger && burgerIngredients.includes("salade"));
-    heldBurgerTomato.setEnabled(showBurger && burgerIngredients.includes("tomate"));
+    heldBurgerCheese.setEnabled(showBurger && burgerIngredients.includes("cheese"));
+    heldBurgerLettuce.setEnabled(showBurger && burgerIngredients.includes("lettuce"));
+    heldBurgerTomato.setEnabled(showBurger && burgerIngredients.includes("tomato"));
     heldBurgerTop.setEnabled(showBurger);
   };
 
@@ -1842,6 +2464,14 @@ function createVRCookingSystem(
   bunBinBody.rotation.y = yaw;
   bunBinBody.isPickable = false;
   bunBinBody.material = binMaterial;
+  createCrateFrontLabel(
+    `${project.id}_bunBinFront`,
+    () => (currentLanguage === "fr" ? "PAIN" : "BUN"),
+    bunBinBody,
+    0.26,
+    0.62,
+    new BABYLON.Color3(1, 0.78, 0.32)
+  );
   const bunHotspot = createHotspot(
     `${project.id}_bunHotspot`,
     toWorld(2.18, 1.255, 0.08),
@@ -1891,6 +2521,15 @@ function createVRCookingSystem(
   steakBinBody.rotation.y = yaw;
   steakBinBody.isPickable = false;
   steakBinBody.material = binMaterial;
+  createCrateFrontLabel(
+    `${project.id}_steakBinFront`,
+    () => (currentLanguage === "fr" ? "STEAK" : "PATTY"),
+    steakBinBody,
+    0.26,
+    0.64,
+    new BABYLON.Color3(0.96, 0.34, 0.3),
+    "back"
+  );
   const steakHotspot = createHotspot(
     `${project.id}_steakHotspot`,
     toWorld(-1.7, 1.255, rearIngredientCounterZ),
@@ -1930,6 +2569,15 @@ function createVRCookingSystem(
   cheeseBinBody.rotation.y = yaw;
   cheeseBinBody.isPickable = false;
   cheeseBinBody.material = binMaterial;
+  createCrateFrontLabel(
+    `${project.id}_cheeseBinFront`,
+    () => (currentLanguage === "fr" ? "FROMAGE" : "CHEESE"),
+    cheeseBinBody,
+    0.24,
+    0.58,
+    new BABYLON.Color3(1, 0.88, 0.28),
+    "back"
+  );
   const cheeseHotspot = createHotspot(
     `${project.id}_cheeseHotspot`,
     toWorld(-0.55, 1.24, rearIngredientCounterZ),
@@ -1970,6 +2618,14 @@ function createVRCookingSystem(
   saladBinBody.rotation.y = yaw;
   saladBinBody.isPickable = false;
   saladBinBody.material = binMaterial;
+  createCrateFrontLabel(
+    `${project.id}_saladBinFront`,
+    () => (currentLanguage === "fr" ? "SALADE" : "LETTUCE"),
+    saladBinBody,
+    0.26,
+    0.6,
+    new BABYLON.Color3(0.3, 0.95, 0.34)
+  );
   const saladHotspot = createHotspot(
     `${project.id}_saladHotspot`,
     toWorld(3.88, 1.255, 0.08),
@@ -2011,6 +2667,15 @@ function createVRCookingSystem(
   tomatoBinBody.rotation.y = yaw;
   tomatoBinBody.isPickable = false;
   tomatoBinBody.material = binMaterial;
+  createCrateFrontLabel(
+    `${project.id}_tomatoBinFront`,
+    () => (currentLanguage === "fr" ? "TOMATE" : "TOMATO"),
+    tomatoBinBody,
+    0.24,
+    0.58,
+    new BABYLON.Color3(0.94, 0.34, 0.28),
+    "back"
+  );
   const tomatoHotspot = createHotspot(
     `${project.id}_tomatoHotspot`,
     toWorld(0.6, 1.24, rearIngredientCounterZ),
@@ -2050,6 +2715,15 @@ function createVRCookingSystem(
   grillBase.rotation.y = yaw;
   grillBase.isPickable = false;
   grillBase.material = steelMaterial;
+  createCrateFrontLabel(
+    `${project.id}_grillFront`,
+    () => (currentLanguage === "fr" ? "CUISSON" : "GRILL"),
+    grillBase,
+    0.16,
+    0.7,
+    new BABYLON.Color3(1, 0.42, 0.18),
+    "back"
+  );
   const grillHotspot = createHotspot(
     `${project.id}_grillHotspot`,
     toWorld(3.45, 1.16, 5.48),
@@ -2164,6 +2838,51 @@ function createVRCookingSystem(
   trashCan.isPickable = false;
   trashCan.material = darkMetalMaterial;
   trashCan.checkCollisions = true;
+  const trashLabel = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_trashLabel`,
+    { width: 0.5, height: 0.16, sideOrientation: BABYLON.Mesh.FRONTSIDE },
+    scene
+  );
+  trashLabel.parent = trashCan;
+  trashLabel.position = new BABYLON.Vector3(0.34, 0.04, 0);
+  trashLabel.rotation.y = -Math.PI / 2;
+  trashLabel.isPickable = false;
+  const trashLabelTexture = new BABYLON.DynamicTexture(
+    `${project.id}_trashLabelTexture`,
+    { width: 384, height: 120 },
+    scene,
+    true
+  );
+  trashLabelTexture.hasAlpha = true;
+  const trashLabelContext = trashLabelTexture.getContext() as CanvasRenderingContext2D;
+  registerLocaleRefresher(() => {
+    trashLabelContext.clearRect(0, 0, 384, 120);
+    trashLabelContext.fillStyle = "rgba(10, 12, 18, 0.92)";
+    trashLabelContext.fillRect(8, 8, 368, 104);
+    trashLabelContext.strokeStyle = "rgba(230, 82, 82, 0.92)";
+    trashLabelContext.lineWidth = 3;
+    trashLabelContext.strokeRect(8, 8, 368, 104);
+    trashLabelContext.fillStyle = "rgba(244, 247, 255, 0.96)";
+    trashLabelContext.font = "700 30px Segoe UI";
+    trashLabelContext.textAlign = "center";
+    trashLabelContext.textBaseline = "middle";
+    trashLabelContext.fillText(
+      currentLanguage === "fr" ? "POUBELLE" : "TRASH",
+      192,
+      60
+    );
+    trashLabelTexture.update();
+  });
+  const trashLabelMaterial = new BABYLON.StandardMaterial(
+    `${project.id}_trashLabelMat`,
+    scene
+  );
+  trashLabelMaterial.diffuseTexture = trashLabelTexture;
+  trashLabelMaterial.emissiveTexture = trashLabelTexture;
+  trashLabelMaterial.opacityTexture = trashLabelTexture;
+  trashLabelMaterial.disableLighting = true;
+  trashLabelMaterial.backFaceCulling = false;
+  trashLabel.material = trashLabelMaterial;
   const trashHotspot = createHotspot(
     `${project.id}_trashHotspot`,
     toWorld(-5.08, 0.93, -1.18),
@@ -2275,68 +2994,128 @@ function createVRCookingSystem(
 
   const getHintForStation = () => {
     if (!focusedStationId) {
-      return "Vise une station et clique ou appuie sur E pour interagir.";
+      return currentLanguage === "fr"
+        ? "Vise une station et clique ou appuie sur E pour interagir."
+        : "Aim at a station and click or press E to interact.";
     }
 
     switch (focusedStationId) {
       case "bunBin":
         return inventory.burger
-          ? "Burger pret - sers-le d'abord ou vide le plateau."
+          ? currentLanguage === "fr"
+            ? "Burger pret - sers-le d'abord ou vide le plateau."
+            : "Burger ready - serve it first or clear your tray."
           : inventory.bun
-            ? "Tu as deja un pain sur le plateau."
-            : "Clic / E - prendre un pain burger";
+            ? currentLanguage === "fr"
+              ? "Tu as deja un pain sur le plateau."
+              : "You already have a bun on the tray."
+            : currentLanguage === "fr"
+              ? "Clic / E - prendre un pain burger"
+              : "Click / E - take a burger bun";
       case "steakBin":
         return inventory.burger
-          ? "Burger deja monte - impossible de reprendre des ingredients."
+          ? currentLanguage === "fr"
+            ? "Burger deja monte - impossible de reprendre des ingredients."
+            : "Burger already assembled - you cannot pick more ingredients."
           : inventory.rawSteak || inventory.cookedSteak
-            ? "Tu as deja un steak sur le plateau."
-            : "Clic / E - prendre un steak cru";
+            ? currentLanguage === "fr"
+              ? "Tu as deja un steak sur le plateau."
+              : "You already have a patty on the tray."
+            : currentLanguage === "fr"
+              ? "Clic / E - prendre un steak cru"
+              : "Click / E - take a raw patty";
       case "saladBin":
         return inventory.burger
-          ? "Burger deja monte - sers-le au comptoir."
+          ? currentLanguage === "fr"
+            ? "Burger deja monte - sers-le au comptoir."
+            : "Burger already assembled - serve it at the counter."
           : inventory.lettuce
-            ? "Tu as deja pris de la salade."
-            : "Clic / E - prendre de la salade";
+            ? currentLanguage === "fr"
+              ? "Tu as deja pris de la salade."
+              : "You already picked lettuce."
+            : currentLanguage === "fr"
+              ? "Clic / E - prendre de la salade"
+              : "Click / E - take lettuce";
       case "cheeseBin":
         return inventory.burger
-          ? "Burger deja monte - sers-le au comptoir."
+          ? currentLanguage === "fr"
+            ? "Burger deja monte - sers-le au comptoir."
+            : "Burger already assembled - serve it at the counter."
           : inventory.cheese
-            ? "Tu as deja pris du fromage."
-            : "Clic / E - prendre du fromage";
+            ? currentLanguage === "fr"
+              ? "Tu as deja pris du fromage."
+              : "You already picked cheese."
+            : currentLanguage === "fr"
+              ? "Clic / E - prendre du fromage"
+              : "Click / E - take cheese";
       case "tomatoBin":
         return inventory.burger
-          ? "Burger deja monte - sers-le au comptoir."
+          ? currentLanguage === "fr"
+            ? "Burger deja monte - sers-le au comptoir."
+            : "Burger already assembled - serve it at the counter."
           : inventory.tomato
-            ? "Tu as deja pris de la tomate."
-            : "Clic / E - prendre de la tomate";
+            ? currentLanguage === "fr"
+              ? "Tu as deja pris de la tomate."
+              : "You already picked tomato."
+            : currentLanguage === "fr"
+              ? "Clic / E - prendre de la tomate"
+              : "Click / E - take tomato";
       case "grill":
         if (grillReady) {
           return inventory.rawSteak || inventory.cookedSteak || inventory.burger
-            ? "Libere le plateau pour recuperer le steak cuit."
-            : "Clic / E - recuperer le steak cuit";
+            ? currentLanguage === "fr"
+              ? "Libere le plateau pour recuperer le steak cuit."
+              : "Clear your tray to pick up the cooked patty."
+            : currentLanguage === "fr"
+              ? "Clic / E - recuperer le steak cuit"
+              : "Click / E - pick up the cooked patty";
         }
         if (grillActive) {
-          return `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`;
+          return currentLanguage === "fr"
+            ? `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
+            : `Cooking in progress - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`;
         }
         return inventory.rawSteak
-          ? "Clic / E - lancer la cuisson du steak"
-          : "Prends un steak cru avant le grill.";
+          ? currentLanguage === "fr"
+            ? "Clic / E - lancer la cuisson du steak"
+            : "Click / E - start cooking the patty"
+          : currentLanguage === "fr"
+            ? "Prends un steak cru avant le grill."
+            : "Grab a raw patty before using the grill.";
       case "prep":
         if (inventory.burger) {
-          return "Burger pret - direction le comptoir client.";
+          return currentLanguage === "fr"
+            ? "Burger pret - direction le comptoir client."
+            : "Burger ready - head to the customer counter.";
         }
         if (inventory.bun && inventory.cookedSteak) {
-          return `Clic / E - assembler ${recipeBook[resolveBurgerType()].title.toLowerCase()}`;
+          return currentLanguage === "fr"
+            ? `Clic / E - assembler ${getRecipeInfo(resolveBurgerType()).title.toLowerCase()}`
+            : `Click / E - assemble ${getRecipeInfo(resolveBurgerType()).title.toLowerCase()}`;
         }
-        return "Assemble pain + steak cuit, puis ajoute fromage, salade ou tomate.";
+        return currentLanguage === "fr"
+          ? "Assemble pain + steak cuit, puis ajoute fromage, salade ou tomate."
+          : "Assemble bun + cooked patty, then add cheese, lettuce or tomato.";
       case "serve":
         return inventory.burger
-          ? "Clic / E - servir la commande en cours"
-          : "Les clients attendent un burger conforme.";
+          ? currentLanguage === "fr"
+            ? "Clic / E - servir la commande en cours"
+            : "Click / E - serve the current order"
+          : currentLanguage === "fr"
+            ? "Les clients attendent un burger conforme."
+            : "Customers are waiting for the correct burger.";
       case "trash":
-        return isInventoryEmpty() ? "Plateau vide." : "Clic / E - vider le plateau et recommencer";
+        return isInventoryEmpty()
+          ? currentLanguage === "fr"
+            ? "Plateau vide."
+            : "Tray already empty."
+          : currentLanguage === "fr"
+            ? "Clic / E - vider le plateau et recommencer"
+            : "Click / E - clear the tray and restart";
       default:
-        return "Vise une station et clique ou appuie sur E pour interagir.";
+        return currentLanguage === "fr"
+          ? "Vise une station et clique ou appuie sur E pour interagir."
+          : "Aim at a station and click or press E to interact.";
     }
   };
 
@@ -2354,68 +3133,121 @@ function createVRCookingSystem(
     switch (focusedStationId) {
       case "bunBin":
         if (inventory.burger) {
-          showCookingPopup("Sers ton burger avant de reprendre des ingredients");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Sers ton burger avant de reprendre des ingredients"
+              : "Serve your burger before taking more ingredients"
+          );
           return true;
         }
         if (inventory.bun) {
-          showCookingPopup("Tu as deja un pain");
+          showCookingPopup(
+            currentLanguage === "fr" ? "Tu as deja un pain" : "You already have a bun"
+          );
           return true;
         }
         inventory.bun = true;
-        showCookingPopup("Pain burger recupere");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Pain burger recupere" : "Burger bun picked up"
+        );
         return true;
       case "steakBin":
         if (inventory.burger) {
-          showCookingPopup("Impossible : burger deja monte");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Impossible : burger deja monte"
+              : "Impossible: burger already assembled"
+          );
           return true;
         }
         if (inventory.rawSteak || inventory.cookedSteak) {
-          showCookingPopup("Tu as deja un steak sur le plateau");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Tu as deja un steak sur le plateau"
+              : "You already have a patty on the tray"
+          );
           return true;
         }
         inventory.rawSteak = true;
-        showCookingPopup("Steak cru recupere");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Steak cru recupere" : "Raw patty picked up"
+        );
         return true;
       case "saladBin":
         if (inventory.burger) {
-          showCookingPopup("Le burger est deja monte");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Le burger est deja monte"
+              : "The burger is already assembled"
+          );
           return true;
         }
         if (inventory.lettuce) {
-          showCookingPopup("Tu as deja pris de la salade");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Tu as deja pris de la salade"
+              : "You already picked lettuce"
+          );
           return true;
         }
         inventory.lettuce = true;
-        showCookingPopup("Salade recuperee");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Salade recuperee" : "Lettuce picked up"
+        );
         return true;
       case "cheeseBin":
         if (inventory.burger) {
-          showCookingPopup("Le burger est deja monte");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Le burger est deja monte"
+              : "The burger is already assembled"
+          );
           return true;
         }
         if (inventory.cheese) {
-          showCookingPopup("Tu as deja pris du fromage");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Tu as deja pris du fromage"
+              : "You already picked cheese"
+          );
           return true;
         }
         inventory.cheese = true;
-        showCookingPopup("Fromage recupere");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Fromage recupere" : "Cheese picked up"
+        );
         return true;
       case "tomatoBin":
         if (inventory.burger) {
-          showCookingPopup("Le burger est deja monte");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Le burger est deja monte"
+              : "The burger is already assembled"
+          );
           return true;
         }
         if (inventory.tomato) {
-          showCookingPopup("Tu as deja pris de la tomate");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Tu as deja pris de la tomate"
+              : "You already picked tomato"
+          );
           return true;
         }
         inventory.tomato = true;
-        showCookingPopup("Tomate recuperee");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Tomate recuperee" : "Tomato picked up"
+        );
         return true;
       case "grill":
         if (grillReady) {
           if (inventory.rawSteak || inventory.cookedSteak || inventory.burger) {
-            showCookingPopup("Libere ton plateau pour recuperer le steak cuit", "warning");
+            showCookingPopup(
+              currentLanguage === "fr"
+                ? "Libere ton plateau pour recuperer le steak cuit"
+                : "Clear your tray to pick up the cooked patty",
+              "warning"
+            );
             return true;
           }
           grillReady = false;
@@ -2424,18 +3256,28 @@ function createVRCookingSystem(
           inventory.cookedSteak = true;
           grillPatty.setEnabled(false);
           orderBoardDirty = true;
-          showCookingPopup("Steak cuit recupere", "success");
+          showCookingPopup(
+            currentLanguage === "fr" ? "Steak cuit recupere" : "Cooked patty picked up",
+            "success"
+          );
           return true;
         }
         if (grillActive) {
           showCookingPopup(
-            `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`,
+            currentLanguage === "fr"
+              ? `Cuisson en cours - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`
+              : `Cooking in progress - ${Math.max(1, Math.ceil((1 - grillProgress) * VR_COOKING_GRILL_TIME))} s`,
             "warning"
           );
           return true;
         }
         if (!inventory.rawSteak) {
-          showCookingPopup("Prends un steak cru avant d'utiliser le grill", "warning");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Prends un steak cru avant d'utiliser le grill"
+              : "Grab a raw patty before using the grill",
+            "warning"
+          );
           return true;
         }
         inventory.rawSteak = false;
@@ -2443,15 +3285,26 @@ function createVRCookingSystem(
         grillProgress = 0;
         grillPatty.setEnabled(true);
         orderBoardDirty = true;
-        showCookingPopup("Steak en cuisson", "warning");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Steak en cuisson" : "Patty cooking",
+          "warning"
+        );
         return true;
       case "prep":
         if (inventory.burger) {
-          showCookingPopup("Burger deja pret", "warning");
+          showCookingPopup(
+            currentLanguage === "fr" ? "Burger deja pret" : "Burger already ready",
+            "warning"
+          );
           return true;
         }
         if (!inventory.bun || !inventory.cookedSteak) {
-          showCookingPopup("Il faut un pain et un steak cuit", "warning");
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Il faut un pain et un steak cuit"
+              : "You need a bun and a cooked patty",
+            "warning"
+          );
           return true;
         }
         inventory.bun = false;
@@ -2461,18 +3314,30 @@ function createVRCookingSystem(
         inventory.cheese = false;
         inventory.lettuce = false;
         inventory.tomato = false;
-        showCookingPopup(`${recipeBook[burgerType].title} assemble`, "success");
+        showCookingPopup(
+          currentLanguage === "fr"
+            ? `${getRecipeInfo(burgerType).title} assemble`
+            : `${getRecipeInfo(burgerType).title} assembled`,
+          "success"
+        );
         return true;
       case "serve": {
         if (!inventory.burger) {
-          showCookingPopup("Aucun burger a servir", "warning");
+          showCookingPopup(
+            currentLanguage === "fr" ? "Aucun burger a servir" : "No burger to serve",
+            "warning"
+          );
           return true;
         }
         const orderIndex = orderQueue.findIndex((order) => order.type === inventory.burger);
         if (orderIndex < 0) {
           comboStreak = 0;
           comboExpiresAt = 0;
-          showCookingPopup("Mauvaise commande", "error", 1050);
+          showCookingPopup(
+            currentLanguage === "fr" ? "Mauvaise commande" : "Wrong order",
+            "error",
+            1050
+          );
           return true;
         }
         const now = performance.now();
@@ -2483,12 +3348,14 @@ function createVRCookingSystem(
         const totalReward = servedOrder.reward + comboBonus;
         score += totalReward;
         inventory.burger = null;
-        refillOrders(now);
+        refillOrders();
         orderBoardDirty = true;
         showCookingPopup(
           comboBonus > 0
             ? `Combo x${comboStreak} +${totalReward}`
-            : `Service valide +${totalReward}`,
+            : currentLanguage === "fr"
+              ? `Service valide +${totalReward}`
+              : `Correct order +${totalReward}`,
           "success",
           1150
         );
@@ -2496,11 +3363,17 @@ function createVRCookingSystem(
       }
       case "trash":
         if (isInventoryEmpty()) {
-          showCookingPopup("Plateau deja vide", "warning");
+          showCookingPopup(
+            currentLanguage === "fr" ? "Plateau deja vide" : "Tray already empty",
+            "warning"
+          );
           return true;
         }
         resetInventory();
-        showCookingPopup("Plateau vide", "warning");
+        showCookingPopup(
+          currentLanguage === "fr" ? "Plateau vide" : "Tray cleared",
+          "warning"
+        );
         return true;
       default:
         return false;
@@ -2513,30 +3386,60 @@ function createVRCookingSystem(
     update() {
       const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
       const now = performance.now();
+      const visible =
+        isPlayerInsideZone() &&
+        projectPanel.classList.contains("hidden") &&
+        !isOverviewOpen();
 
       if (comboStreak > 0 && now > comboExpiresAt) {
         comboStreak = 0;
       }
 
-      const expiredOrders: VRCookingOrder[] = [];
-      for (let index = orderQueue.length - 1; index >= 0; index -= 1) {
-        if (now >= orderQueue[index].expiresAt) {
-          expiredOrders.push(...orderQueue.splice(index, 1));
+      if (visible && unlockedClientCount < VR_COOKING_ORDER_COUNT) {
+        cookingActiveElapsedMs += dt * 1000;
+        if (cookingActiveElapsedMs >= VR_COOKING_SECOND_CLIENT_DELAY * 1000) {
+          unlockedClientCount = VR_COOKING_ORDER_COUNT;
+          refillOrders();
+          orderBoardDirty = true;
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Client B arrive au comptoir"
+              : "Client B arrives at the counter",
+            "success",
+            1200
+          );
         }
       }
-      if (expiredOrders.length > 0) {
-        score = Math.max(0, score - expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY);
-        comboStreak = 0;
-        comboExpiresAt = 0;
-        refillOrders(now);
-        orderBoardDirty = true;
-        showCookingPopup(
-          expiredOrders.length > 1
-            ? `${expiredOrders.length} commandes perdues -${expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY}`
-            : `Commande perdue -${VR_COOKING_TIMEOUT_PENALTY}`,
-          "error",
-          1200
-        );
+
+      if (visible && orderQueue.length > 0) {
+        for (const order of orderQueue) {
+          order.remainingMs = Math.max(0, order.remainingMs - dt * 1000);
+        }
+
+        const expiredOrders: VRCookingOrder[] = [];
+        for (let index = orderQueue.length - 1; index >= 0; index -= 1) {
+          if (orderQueue[index].remainingMs <= 0) {
+            expiredOrders.push(...orderQueue.splice(index, 1));
+          }
+        }
+        if (expiredOrders.length > 0) {
+          score = Math.max(0, score - expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY);
+          comboStreak = 0;
+          comboExpiresAt = 0;
+          refillOrders();
+          orderBoardDirty = true;
+          showCookingPopup(
+            expiredOrders.length > 1
+              ? currentLanguage === "fr"
+                ? `${expiredOrders.length} commandes perdues -${expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY}`
+                : `${expiredOrders.length} orders lost -${expiredOrders.length * VR_COOKING_TIMEOUT_PENALTY}`
+              : currentLanguage === "fr"
+                ? `Commande perdue -${VR_COOKING_TIMEOUT_PENALTY}`
+                : `Order lost -${VR_COOKING_TIMEOUT_PENALTY}`,
+            "error",
+            1200
+          );
+        }
       }
 
       if (grillActive && !grillReady && dt > 0) {
@@ -2544,7 +3447,13 @@ function createVRCookingSystem(
         if (grillProgress >= 1) {
           grillReady = true;
           orderBoardDirty = true;
-          showCookingPopup("Steak cuit - retourne au grill", "success", 1050);
+          showCookingPopup(
+            currentLanguage === "fr"
+              ? "Steak cuit - retourne au grill"
+              : "Cooked patty - go back to the grill",
+            "success",
+            1050
+          );
         }
       }
 
@@ -2573,7 +3482,7 @@ function createVRCookingSystem(
       if (
         orderBoardDirty ||
         (grillActive && now - lastBoardRefreshAt > 160) ||
-        (orderQueue.length > 0 && now - lastBoardRefreshAt > 180)
+        (visible && orderQueue.length > 0 && now - lastBoardRefreshAt > 180)
       ) {
         updateOrderBoard(now);
       }
@@ -2582,10 +3491,6 @@ function createVRCookingSystem(
         cookingPopup.classList.remove("visible");
       }
 
-      const visible =
-        isPlayerInsideZone() &&
-        projectPanel.classList.contains("hidden") &&
-        !isOverviewOpen();
       cookingHud.classList.toggle("hidden", !visible);
       updateHeldVisuals(visible && isPointerLocked, now);
 
@@ -2625,16 +3530,6 @@ function createProjectTrailerBillboard(
   position: BABYLON.Vector3,
   rotationY: number
 ) {
-  const descriptorLine =
-    project.id === "survivorSlime"
-      ? "FPS roguelike | Merge system | Horde combat"
-      : project.id === "vrCooking"
-        ? "VR cooking | Burger rush | Coop interactions"
-        : `${project.engine} | ${project.focus}`;
-  const trailerNote =
-    project.id === "vrCooking"
-      ? "Placeholder en attendant l'integration d'une capture de gameplay cuisine / service."
-      : "Placeholder en attendant l'integration de la vraie video trailer.";
   const root = new BABYLON.TransformNode(`${project.id}_trailerBillboardRoot`, scene);
   root.position = position.add(new BABYLON.Vector3(0, 3.34, 0));
   root.rotation.y = rotationY;
@@ -2665,65 +3560,102 @@ function createProjectTrailerBillboard(
   );
   screenTexture.hasAlpha = true;
   const context = screenTexture.getContext();
+  registerLocaleRefresher(() => {
+    const projectText = getProjectText(project);
+    const descriptorLine =
+      project.id === "survivorSlime"
+        ? currentLanguage === "fr"
+          ? "FPS roguelike | Merge system | Combat de horde"
+          : "FPS roguelike | Merge system | Horde combat"
+        : project.id === "vrCooking"
+          ? currentLanguage === "fr"
+            ? "VR cooking | Burger rush | Interactions coop"
+            : "VR cooking | Burger rush | Co-op interactions"
+          : project.id === "drivingSim"
+            ? currentLanguage === "fr"
+              ? "Dynamique vehicule | Quartier urbain | Simulation sur rig"
+              : "Vehicle dynamics | Urban district | Rig-ready simulation"
+            : `${projectText.engine} | ${projectText.focus}`;
+    const trailerNote =
+      project.id === "vrCooking"
+        ? currentLanguage === "fr"
+          ? "Placeholder en attendant l'integration d'une capture de gameplay cuisine / service."
+          : "Placeholder while waiting for cooking and service gameplay footage."
+        : project.id === "drivingSim"
+          ? currentLanguage === "fr"
+            ? "Placeholder en attendant l'integration d'une capture de conduite et de telemetrie sur le rig."
+            : "Placeholder while waiting for driving footage and rig telemetry capture."
+          : currentLanguage === "fr"
+            ? "Placeholder en attendant l'integration de la vraie video trailer."
+            : "Placeholder while waiting for the final trailer video.";
 
-  context.clearRect(0, 0, 1536, 896);
-  const gradient = context.createLinearGradient(0, 0, 0, 896);
-  gradient.addColorStop(0, "rgba(8, 14, 24, 0.98)");
-  gradient.addColorStop(1, "rgba(3, 8, 14, 0.98)");
-  context.fillStyle = gradient;
-  context.fillRect(0, 0, 1536, 896);
+    context.clearRect(0, 0, 1536, 896);
+    const gradient = context.createLinearGradient(0, 0, 0, 896);
+    gradient.addColorStop(0, "rgba(8, 14, 24, 0.98)");
+    gradient.addColorStop(1, "rgba(3, 8, 14, 0.98)");
+    context.fillStyle = gradient;
+    context.fillRect(0, 0, 1536, 896);
 
-  context.fillStyle = "rgba(98, 255, 196, 0.08)";
-  context.fillRect(96, 88, 1344, 720);
+    context.fillStyle = "rgba(98, 255, 196, 0.08)";
+    context.fillRect(96, 88, 1344, 720);
 
-  for (let line = 0; line < 24; line += 1) {
-    context.fillStyle = `rgba(255, 255, 255, ${0.012 + (line % 3) * 0.006})`;
-    context.fillRect(96, 88 + line * 30, 1344, 1);
-  }
+    for (let line = 0; line < 24; line += 1) {
+      context.fillStyle = `rgba(255, 255, 255, ${0.012 + (line % 3) * 0.006})`;
+      context.fillRect(96, 88 + line * 30, 1344, 1);
+    }
 
-  context.strokeStyle = "rgba(69, 255, 191, 0.55)";
-  context.lineWidth = 4;
-  context.strokeRect(96, 88, 1344, 720);
+    context.strokeStyle = "rgba(69, 255, 191, 0.55)";
+    context.lineWidth = 4;
+    context.strokeRect(96, 88, 1344, 720);
 
-  context.fillStyle = "rgba(127, 231, 203, 0.96)";
-  context.font = "600 38px Segoe UI";
-  context.fillText("TRAILER / GAMEPLAY CAPTURE", 142, 162);
+    context.fillStyle = "rgba(127, 231, 203, 0.96)";
+    context.font = "600 38px Segoe UI";
+    context.fillText(
+      currentLanguage === "fr" ? "TRAILER / CAPTURE GAMEPLAY" : "TRAILER / GAMEPLAY CAPTURE",
+      142,
+      162
+    );
 
-  context.fillStyle = "rgba(242, 247, 255, 0.98)";
-  context.font = "700 102px Segoe UI";
-  context.fillText(project.title, 136, 336);
+    context.fillStyle = "rgba(242, 247, 255, 0.98)";
+    context.font = "700 102px Segoe UI";
+    context.fillText(projectText.title, 136, 336);
 
-  context.fillStyle = "rgba(185, 208, 255, 0.82)";
-  context.font = "400 42px Segoe UI";
-  context.fillText(descriptorLine, 142, 402);
+    context.fillStyle = "rgba(185, 208, 255, 0.82)";
+    context.font = "400 42px Segoe UI";
+    context.fillText(descriptorLine, 142, 402);
 
-  context.fillStyle = "rgba(52, 255, 182, 0.18)";
-  context.beginPath();
-  context.arc(768, 490, 118, 0, Math.PI * 2);
-  context.fill();
+    context.fillStyle = "rgba(52, 255, 182, 0.18)";
+    context.beginPath();
+    context.arc(768, 490, 118, 0, Math.PI * 2);
+    context.fill();
 
-  context.strokeStyle = "rgba(129, 255, 210, 0.72)";
-  context.lineWidth = 5;
-  context.beginPath();
-  context.arc(768, 490, 118, 0, Math.PI * 2);
-  context.stroke();
+    context.strokeStyle = "rgba(129, 255, 210, 0.72)";
+    context.lineWidth = 5;
+    context.beginPath();
+    context.arc(768, 490, 118, 0, Math.PI * 2);
+    context.stroke();
 
-  context.fillStyle = "rgba(245, 250, 255, 0.96)";
-  context.beginPath();
-  context.moveTo(740, 430);
-  context.lineTo(740, 550);
-  context.lineTo(836, 490);
-  context.closePath();
-  context.fill();
+    context.fillStyle = "rgba(245, 250, 255, 0.96)";
+    context.beginPath();
+    context.moveTo(740, 430);
+    context.lineTo(740, 550);
+    context.lineTo(836, 490);
+    context.closePath();
+    context.fill();
 
-  context.fillStyle = "rgba(134, 255, 210, 0.92)";
-  context.font = "700 44px Segoe UI";
-  context.fillText("WATCH THE PROTOTYPE", 538, 676);
+    context.fillStyle = "rgba(134, 255, 210, 0.92)";
+    context.font = "700 44px Segoe UI";
+    context.fillText(
+      currentLanguage === "fr" ? "VOIR LE PROTOTYPE" : "WATCH THE PROTOTYPE",
+      538,
+      676
+    );
 
-  context.fillStyle = "rgba(214, 226, 255, 0.72)";
-  context.font = "400 28px Segoe UI";
-  context.fillText(trailerNote, 258, 726);
-  screenTexture.update();
+    context.fillStyle = "rgba(214, 226, 255, 0.72)";
+    context.font = "400 28px Segoe UI";
+    context.fillText(trailerNote, 258, 726);
+    screenTexture.update();
+  });
 
   const screenMaterial = new BABYLON.StandardMaterial(
     `${project.id}_trailerScreenMat`,
@@ -2777,6 +3709,171 @@ function createProjectTrailerBillboard(
     support.isPickable = false;
     support.material = frameMaterial;
   }
+}
+
+function createProjectWipSign(scene: BABYLON.Scene, project: ProjectData) {
+  if (project.id !== "drivingSim" && project.id !== "fantasyMobile") {
+    return;
+  }
+
+  const { inward, right, yaw } = getRoomBasis(project);
+  const config =
+    project.id === "drivingSim"
+      ? {
+          forward: DRIVING_ZONE_DEPTH * 0.5 + 2.15,
+          lateral: -8.1,
+          height: 1.22,
+          width: 2.45,
+          supportHeight: 1.28,
+        }
+      : {
+          forward: 5.85,
+          lateral: -3.2,
+          height: 1.14,
+          width: 2.15,
+          supportHeight: 1.18,
+        };
+
+  const root = new BABYLON.TransformNode(`${project.id}_wipRoot`, scene);
+  root.position = project.position
+    .add(inward.scale(config.forward))
+    .add(right.scale(config.lateral))
+    .add(new BABYLON.Vector3(0, config.height, 0));
+  root.rotation.y = yaw + Math.PI;
+
+  const frameMaterial = createMaterial(
+    scene,
+    `${project.id}_wipFrameMat`,
+    new BABYLON.Color3(0.14, 0.11, 0.08),
+    new BABYLON.Color3(0.18, 0.08, 0.02)
+  );
+  frameMaterial.specularColor = new BABYLON.Color3(0.3, 0.24, 0.16);
+  frameMaterial.specularPower = 64;
+
+  const glowMaterial = createMaterial(
+    scene,
+    `${project.id}_wipGlowMat`,
+    new BABYLON.Color3(0.22, 0.12, 0.04),
+    new BABYLON.Color3(0.8, 0.38, 0.04),
+    0.14
+  );
+  glowMaterial.disableLighting = true;
+
+  const signTexture = new BABYLON.DynamicTexture(
+    `${project.id}_wipTexture`,
+    { width: 1024, height: 512 },
+    scene,
+    true
+  );
+  signTexture.hasAlpha = true;
+  const context = signTexture.getContext();
+  registerLocaleRefresher(() => {
+    context.clearRect(0, 0, 1024, 512);
+    context.fillStyle = "rgba(18, 12, 8, 0.92)";
+    context.fillRect(42, 54, 940, 404);
+    context.strokeStyle = "rgba(255, 168, 74, 0.95)";
+    context.lineWidth = 6;
+    context.strokeRect(42, 54, 940, 404);
+    context.fillStyle = "rgba(255, 196, 122, 0.92)";
+    context.font = "600 42px Segoe UI";
+    context.fillText(
+      currentLanguage === "fr" ? "ZONE EN PROGRESSION" : "WORK IN PROGRESS",
+      92,
+      134
+    );
+    context.fillStyle = "rgba(255, 244, 232, 0.98)";
+    context.font = "800 162px Segoe UI";
+    context.fillText("WIP", 92, 286);
+    context.fillStyle = "rgba(255, 214, 168, 0.9)";
+    context.font = "600 40px Segoe UI";
+    context.fillText(
+      currentLanguage === "fr" ? "Contenu en cours d'iteration" : "Content still being iterated",
+      96,
+      356
+    );
+    context.fillStyle = "rgba(255, 224, 194, 0.76)";
+    context.font = "400 28px Segoe UI";
+    context.fillText(
+      currentLanguage === "fr"
+        ? "Gameplay, visuels et media encore en construction."
+        : "Gameplay, visuals and media are still under construction.",
+      96,
+      408
+    );
+    signTexture.update();
+  });
+
+  const signMaterial = new BABYLON.StandardMaterial(`${project.id}_wipMat`, scene);
+  signMaterial.diffuseTexture = signTexture;
+  signMaterial.emissiveTexture = signTexture;
+  signMaterial.opacityTexture = signTexture;
+  signMaterial.emissiveColor = new BABYLON.Color3(1, 0.74, 0.42);
+  signMaterial.disableLighting = true;
+  signMaterial.backFaceCulling = false;
+
+  const backPlate = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_wipBackPlate`,
+    { width: config.width + 0.24, height: 1.26, depth: 0.12 },
+    scene
+  );
+  backPlate.parent = root;
+  backPlate.position.z = 0.02;
+  backPlate.isPickable = false;
+  backPlate.material = frameMaterial;
+
+  const panel = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_wipPanel`,
+    {
+      width: config.width,
+      height: 1.08,
+      sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+    },
+    scene
+  );
+  panel.parent = root;
+  panel.position.z = -0.06;
+  panel.isPickable = false;
+  panel.material = signMaterial;
+
+  const glow = BABYLON.MeshBuilder.CreatePlane(
+    `${project.id}_wipGlow`,
+    {
+      width: config.width + 0.42,
+      height: 1.34,
+      sideOrientation: BABYLON.Mesh.DOUBLESIDE,
+    },
+    scene
+  );
+  glow.parent = root;
+  glow.position.z = -0.12;
+  glow.isPickable = false;
+  glow.material = glowMaterial;
+
+  for (const side of [-1, 1]) {
+    const support = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_wipSupport_${side}`,
+      { width: 0.08, height: config.supportHeight, depth: 0.08 },
+      scene
+    );
+    support.parent = root;
+    support.position = new BABYLON.Vector3(
+      side * (config.width * 0.32),
+      -0.5 - config.supportHeight * 0.5,
+      0
+    );
+    support.isPickable = false;
+    support.material = frameMaterial;
+  }
+
+  const base = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_wipBase`,
+    { width: config.width * 0.62, height: 0.08, depth: 0.52 },
+    scene
+  );
+  base.parent = root;
+  base.position = new BABYLON.Vector3(0, -1.18, 0.08);
+  base.isPickable = false;
+  base.material = frameMaterial;
 }
 
 function getOrCreateRockMaterial(
@@ -3715,6 +4812,1031 @@ function createSciFiPod(
   }
   enableCollisions(...collidableMeshes);
 }
+function getDrivingRoadRects() {
+  return [
+    { name: "entrySouth", minX: -5.1, maxX: 5.1, minZ: -38, maxZ: -23.2 },
+    { name: "mainAvenue", minX: -5.8, maxX: 5.8, minZ: -23.2, maxZ: 35.6 },
+    { name: "westAvenue", minX: -29.4, maxX: -18.2, minZ: -23.2, maxZ: 30.8 },
+    { name: "eastAvenue", minX: 18.2, maxX: 29.4, minZ: -23.2, maxZ: 30.8 },
+    { name: "southStreet", minX: -35, maxX: 35, minZ: -23.2, maxZ: -12.2 },
+    { name: "marketStreet", minX: -35, maxX: 35, minZ: -3.6, maxZ: 7.2 },
+    { name: "northStreet", minX: -35, maxX: 35, minZ: 15.6, maxZ: 26.6 },
+    { name: "westConnector", minX: -19.2, maxX: -5.2, minZ: 6.2, maxZ: 17.8 },
+    { name: "eastConnector", minX: 5.2, maxX: 19.2, minZ: 6.2, maxZ: 17.8 },
+  ];
+}
+
+function isInsideDrivingRoad(
+  roadRects: ReturnType<typeof getDrivingRoadRects>,
+  x: number,
+  z: number
+) {
+  return roadRects.some(
+    (rect) =>
+      x >= rect.minX - DRIVING_ZONE_NAV_MARGIN &&
+      x <= rect.maxX + DRIVING_ZONE_NAV_MARGIN &&
+      z >= rect.minZ - DRIVING_ZONE_NAV_MARGIN &&
+      z <= rect.maxZ + DRIVING_ZONE_NAV_MARGIN
+  );
+}
+
+function createDrivingRoadStripe(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  width: number,
+  depth: number,
+  color: BABYLON.Color3,
+  alpha = 0.96
+) {
+  const stripe = BABYLON.MeshBuilder.CreateBox(
+    name,
+    { width, height: 0.012, depth },
+    scene
+  );
+  stripe.position = position;
+  stripe.rotation.y = rotationY;
+  stripe.isPickable = false;
+  stripe.material = createMaterial(
+    scene,
+    `${name}_mat`,
+    color.scale(0.9),
+    color.scale(0.28),
+    alpha
+  );
+}
+
+function createDrivingBuilding(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  width: number,
+  depth: number,
+  height: number,
+  accentColor: BABYLON.Color3
+) {
+  const root = new BABYLON.TransformNode(`${name}_root`, scene);
+  root.position = position.clone();
+  root.rotation.y = rotationY;
+
+  const shell = BABYLON.MeshBuilder.CreateBox(
+    `${name}_shell`,
+    { width, height, depth },
+    scene
+  );
+  shell.parent = root;
+  shell.position.y = height * 0.5;
+  shell.isPickable = false;
+  shell.material = createMaterial(
+    scene,
+    `${name}_shellMat`,
+    new BABYLON.Color3(0.14, 0.16, 0.18),
+    accentColor.scale(0.04)
+  );
+
+  const plinth = BABYLON.MeshBuilder.CreateBox(
+    `${name}_plinth`,
+    { width: width + 0.12, height: 0.22, depth: depth + 0.12 },
+    scene
+  );
+  plinth.parent = root;
+  plinth.position.y = 0.11;
+  plinth.isPickable = false;
+  plinth.material = createMaterial(
+    scene,
+    `${name}_plinthMat`,
+    new BABYLON.Color3(0.08, 0.09, 0.11),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+
+  const roof = BABYLON.MeshBuilder.CreateBox(
+    `${name}_roof`,
+    { width: width + 0.18, height: 0.14, depth: depth + 0.18 },
+    scene
+  );
+  roof.parent = root;
+  roof.position.y = height + 0.07;
+  roof.isPickable = false;
+  roof.material = createMaterial(
+    scene,
+    `${name}_roofMat`,
+    new BABYLON.Color3(0.09, 0.1, 0.12),
+    accentColor.scale(0.06)
+  );
+
+  const windowMaterial = createMaterial(
+    scene,
+    `${name}_windowMat`,
+    new BABYLON.Color3(0.18, 0.24, 0.28),
+    accentColor.scale(0.22),
+    0.92
+  );
+  windowMaterial.disableLighting = true;
+
+  const frontWindows = BABYLON.MeshBuilder.CreatePlane(
+    `${name}_frontWindows`,
+    { width: Math.max(0.8, width - 0.42), height: Math.max(0.9, height - 1.2) },
+    scene
+  );
+  frontWindows.parent = root;
+  frontWindows.position = new BABYLON.Vector3(0, height * 0.54, -depth * 0.5 - 0.04);
+  frontWindows.isPickable = false;
+  frontWindows.material = windowMaterial;
+
+  const sideWindows = BABYLON.MeshBuilder.CreatePlane(
+    `${name}_sideWindows`,
+    { width: Math.max(0.8, depth - 0.42), height: Math.max(0.9, height - 1.55) },
+    scene
+  );
+  sideWindows.parent = root;
+  sideWindows.position = new BABYLON.Vector3(width * 0.5 + 0.04, height * 0.52, 0);
+  sideWindows.rotation.y = Math.PI / 2;
+  sideWindows.isPickable = false;
+  sideWindows.material = windowMaterial;
+
+  enableCollisions(shell, plinth, roof);
+  return root;
+}
+
+function createDrivingStreetLamp(
+  scene: BABYLON.Scene,
+  name: string,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  accentColor: BABYLON.Color3
+) {
+  const pole = BABYLON.MeshBuilder.CreateCylinder(
+    `${name}_pole`,
+    { diameter: 0.08, height: 3.4, tessellation: 10 },
+    scene
+  );
+  pole.position = position.add(new BABYLON.Vector3(0, 1.7, 0));
+  pole.rotation.y = rotationY;
+  pole.isPickable = false;
+  pole.material = createMaterial(
+    scene,
+    `${name}_poleMat`,
+    new BABYLON.Color3(0.16, 0.18, 0.2),
+    new BABYLON.Color3(0.012, 0.012, 0.014)
+  );
+
+  const arm = BABYLON.MeshBuilder.CreateBox(
+    `${name}_arm`,
+    { width: 0.08, height: 0.08, depth: 0.82 },
+    scene
+  );
+  arm.position = position.add(new BABYLON.Vector3(0, 3.22, 0.28));
+  arm.rotation.y = rotationY;
+  arm.isPickable = false;
+  arm.material = pole.material;
+
+  const head = BABYLON.MeshBuilder.CreateBox(
+    `${name}_head`,
+    { width: 0.16, height: 0.12, depth: 0.42 },
+    scene
+  );
+  head.position = position.add(new BABYLON.Vector3(0, 3.22, 0.66));
+  head.rotation.y = rotationY;
+  head.isPickable = false;
+  head.material = createMaterial(
+    scene,
+    `${name}_headMat`,
+    new BABYLON.Color3(0.88, 0.88, 0.84),
+    accentColor.scale(0.16)
+  );
+
+  const lampGlow = BABYLON.MeshBuilder.CreateSphere(
+    `${name}_glow`,
+    { diameter: 0.18, segments: 10 },
+    scene
+  );
+  lampGlow.position = position.add(new BABYLON.Vector3(0, 3.1, 0.76));
+  lampGlow.isPickable = false;
+  lampGlow.material = createMaterial(
+    scene,
+    `${name}_glowMat`,
+    new BABYLON.Color3(0.95, 0.86, 0.68),
+    new BABYLON.Color3(0.42, 0.28, 0.08),
+    0.94
+  );
+
+  const light = new BABYLON.PointLight(`${name}_light`, lampGlow.position.clone(), scene);
+  light.diffuse = new BABYLON.Color3(1, 0.82, 0.6);
+  light.intensity = 0.46;
+  light.range = 7.5;
+}
+
+function createDrivingCar(
+  scene: BABYLON.Scene,
+  project: ProjectData,
+  position: BABYLON.Vector3,
+  rotationY: number,
+  options?: {
+    bodyColor?: BABYLON.Color3;
+    interactive?: boolean;
+    scale?: number;
+  }
+) {
+  const bodyColor =
+    options?.bodyColor ?? new BABYLON.Color3(0.64, 0.12, 0.12);
+  const interactive = options?.interactive ?? true;
+  const root = new BABYLON.TransformNode(`${project.id}_carRoot`, scene);
+  root.position = position.clone();
+  root.rotation.y = rotationY;
+  if (options?.scale) {
+    root.scaling = new BABYLON.Vector3(options.scale, options.scale, options.scale);
+  }
+
+  const bodyMaterial = createMaterial(
+    scene,
+    `${project.id}_carBodyMat`,
+    bodyColor,
+    project.color.scale(0.2)
+  );
+  bodyMaterial.specularColor = new BABYLON.Color3(0.34, 0.34, 0.36);
+  bodyMaterial.specularPower = 78;
+
+  const trimMaterial = createMaterial(
+    scene,
+    `${project.id}_carTrimMat`,
+    new BABYLON.Color3(0.08, 0.09, 0.1),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+  const glassMaterial = createMaterial(
+    scene,
+    `${project.id}_carGlassMat`,
+    new BABYLON.Color3(0.16, 0.22, 0.28),
+    project.color.scale(0.12),
+    0.9
+  );
+  glassMaterial.specularColor = new BABYLON.Color3(0.26, 0.3, 0.34);
+
+  const chassis = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carChassis`,
+    { width: 1.92, height: 0.46, depth: 4.2 },
+    scene
+  );
+  chassis.parent = root;
+  chassis.position.y = 0.58;
+  chassis.isPickable = false;
+  chassis.material = bodyMaterial;
+
+  const cabin = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carCabin`,
+    { width: 1.54, height: 0.62, depth: 1.96 },
+    scene
+  );
+  cabin.parent = root;
+  cabin.position = new BABYLON.Vector3(0, 1.02, -0.14);
+  cabin.isPickable = false;
+  cabin.material = glassMaterial;
+
+  const hood = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carHood`,
+    { width: 1.78, height: 0.18, depth: 1.18 },
+    scene
+  );
+  hood.parent = root;
+  hood.position = new BABYLON.Vector3(0, 0.77, 1.26);
+  hood.isPickable = false;
+  hood.material = bodyMaterial;
+
+  const trunk = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carTrunk`,
+    { width: 1.72, height: 0.14, depth: 0.92 },
+    scene
+  );
+  trunk.parent = root;
+  trunk.position = new BABYLON.Vector3(0, 0.74, -1.58);
+  trunk.isPickable = false;
+  trunk.material = bodyMaterial;
+
+  const frontBumper = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carBumperFront`,
+    { width: 1.86, height: 0.18, depth: 0.16 },
+    scene
+  );
+  frontBumper.parent = root;
+  frontBumper.position = new BABYLON.Vector3(0, 0.42, 2.08);
+  frontBumper.isPickable = false;
+  frontBumper.material = trimMaterial;
+
+  const rearBumper = frontBumper.clone(`${project.id}_carBumperRear`);
+  rearBumper.parent = root;
+  rearBumper.position.z = -2.08;
+
+  const dashboard = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carDashboard`,
+    { width: 1.34, height: 0.18, depth: 0.42 },
+    scene
+  );
+  dashboard.parent = root;
+  dashboard.position = new BABYLON.Vector3(0, 1.07, 0.62);
+  dashboard.isPickable = false;
+  dashboard.material = trimMaterial;
+
+  const steeringWheel = BABYLON.MeshBuilder.CreateTorus(
+    `${project.id}_steeringWheel`,
+    { diameter: 0.38, thickness: 0.04, tessellation: 22 },
+    scene
+  );
+  steeringWheel.parent = root;
+  steeringWheel.position = new BABYLON.Vector3(-0.32, 0.98, 0.42);
+  steeringWheel.rotation.x = Math.PI / 2.8;
+  steeringWheel.rotation.z = -0.18;
+  steeringWheel.isPickable = false;
+  steeringWheel.material = trimMaterial;
+
+  const cockpitAnchor = new BABYLON.TransformNode(
+    `${project.id}_carCockpitAnchor`,
+    scene
+  );
+  cockpitAnchor.parent = root;
+  cockpitAnchor.position = new BABYLON.Vector3(-0.24, 1.08, 0.54);
+
+  for (const side of [-1, 1]) {
+    const headlight = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_headlight_${side}`,
+      { width: 0.34, height: 0.1, depth: 0.08 },
+      scene
+    );
+    headlight.parent = root;
+    headlight.position = new BABYLON.Vector3(0.58 * side, 0.68, 2.02);
+    headlight.isPickable = false;
+    headlight.material = createMaterial(
+      scene,
+      `${project.id}_headlightMat_${side}`,
+      new BABYLON.Color3(0.96, 0.94, 0.88),
+      new BABYLON.Color3(0.28, 0.24, 0.16)
+    );
+
+    const taillight = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_taillight_${side}`,
+      { width: 0.3, height: 0.1, depth: 0.08 },
+      scene
+    );
+    taillight.parent = root;
+    taillight.position = new BABYLON.Vector3(0.58 * side, 0.66, -2.02);
+    taillight.isPickable = false;
+    taillight.material = createMaterial(
+      scene,
+      `${project.id}_taillightMat_${side}`,
+      new BABYLON.Color3(0.72, 0.12, 0.08),
+      new BABYLON.Color3(0.24, 0.04, 0.02)
+    );
+  }
+
+  const wheelMaterial = createMaterial(
+    scene,
+    `${project.id}_wheelMat`,
+    new BABYLON.Color3(0.08, 0.08, 0.09),
+    new BABYLON.Color3(0.008, 0.008, 0.01)
+  );
+
+  const wheels: BABYLON.Mesh[] = [];
+  const steeringPivots: BABYLON.TransformNode[] = [];
+  for (const axle of [
+    { z: 1.18, steer: true },
+    { z: -1.24, steer: false },
+  ]) {
+    for (const side of [-1, 1]) {
+      const pivot = new BABYLON.TransformNode(
+        `${project.id}_wheelPivot_${axle.z}_${side}`,
+        scene
+      );
+      pivot.parent = root;
+      pivot.position = new BABYLON.Vector3(1.06 * side, 0.38, axle.z);
+      if (axle.steer) {
+        steeringPivots.push(pivot);
+      }
+
+      const wheel = BABYLON.MeshBuilder.CreateCylinder(
+        `${project.id}_wheel_${axle.z}_${side}`,
+        { diameter: 0.72, height: 0.34, tessellation: 18 },
+        scene
+      );
+      wheel.parent = pivot;
+      wheel.rotation.z = Math.PI / 2;
+      wheel.isPickable = false;
+      wheel.material = wheelMaterial;
+      wheels.push(wheel);
+    }
+  }
+
+  const interactionMesh = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_carInteraction`,
+    { width: 2.65, height: 1.55, depth: 4.8 },
+    scene
+  );
+  interactionMesh.parent = root;
+  interactionMesh.position = new BABYLON.Vector3(0, 0.94, 0);
+  interactionMesh.isPickable = interactive;
+  interactionMesh.material = createMaterial(
+    scene,
+    `${project.id}_carInteractionMat`,
+    project.color.scale(0.1),
+    project.color.scale(0.22),
+    interactive ? 0.001 : 0
+  );
+  interactionMesh.metadata = {
+    drivingInteractableId: "car",
+  } satisfies DrivingInteractableMetadata;
+  interactionMesh.setEnabled(interactive);
+
+  const interactionHalo = BABYLON.MeshBuilder.CreateTorus(
+    `${project.id}_carHalo`,
+    { diameter: 3.1, thickness: 0.08, tessellation: 36 },
+    scene
+  );
+  interactionHalo.parent = root;
+  interactionHalo.position.y = 0.08;
+  interactionHalo.rotation.x = Math.PI / 2;
+  interactionHalo.isPickable = false;
+  interactionHalo.material = createMaterial(
+    scene,
+    `${project.id}_carHaloMat`,
+    project.color.scale(0.2),
+    project.color.scale(0.36),
+    interactive ? 0.14 : 0
+  );
+  interactionHalo.setEnabled(interactive);
+
+  enableCollisions(chassis, cabin, hood, trunk, frontBumper, rearBumper);
+
+  return {
+    root,
+    wheels,
+    steeringPivots,
+    interactionMesh,
+    interactionHalo,
+    chassis,
+    cockpitAnchor,
+    steeringWheel,
+  };
+}
+
+function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
+  const { right, back, yaw } = getRoomBasis(project);
+  const zoneWidth = DRIVING_ZONE_WIDTH;
+  const zoneDepth = DRIVING_ZONE_DEPTH;
+  const wallHeight = 5.35;
+  const wallThickness = 0.45;
+  const entranceHalfWidth = 5.4;
+  const roadRects = getDrivingRoadRects();
+  const toWorld = (x: number, y: number, z: number) =>
+    project.position
+      .add(right.scale(x))
+      .add(back.scale(z))
+      .add(new BABYLON.Vector3(0, y, 0));
+
+  const lot = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_lot`,
+    { width: zoneWidth, height: 0.08, depth: zoneDepth },
+    scene
+  );
+  lot.position = toWorld(0, 0.04, 0);
+  lot.rotation.y = yaw;
+  lot.checkCollisions = true;
+  lot.isPickable = false;
+  lot.material = createMaterial(
+    scene,
+    `${project.id}_lotMat`,
+    new BABYLON.Color3(0.14, 0.15, 0.17),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+
+  const wallMaterial = createMaterial(
+    scene,
+    `${project.id}_wallMat`,
+    new BABYLON.Color3(0.12, 0.14, 0.18),
+    project.color.scale(0.04)
+  );
+  const sidewalkMaterial = createMaterial(
+    scene,
+    `${project.id}_sidewalkMat`,
+    new BABYLON.Color3(0.34, 0.35, 0.37),
+    new BABYLON.Color3(0.02, 0.02, 0.024)
+  );
+  const asphaltMaterial = createMaterial(
+    scene,
+    `${project.id}_asphaltMat`,
+    new BABYLON.Color3(0.075, 0.08, 0.095),
+    new BABYLON.Color3(0.008, 0.01, 0.014)
+  );
+
+  const wallSegments = [
+    {
+      name: "rear",
+      size: { width: zoneWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: 0, z: zoneDepth * 0.5 },
+    },
+    {
+      name: "left",
+      size: { width: wallThickness, height: wallHeight, depth: zoneDepth + wallThickness },
+      position: { x: -zoneWidth * 0.5, z: 0 },
+    },
+    {
+      name: "right",
+      size: { width: wallThickness, height: wallHeight, depth: zoneDepth + wallThickness },
+      position: { x: zoneWidth * 0.5, z: 0 },
+    },
+    {
+      name: "frontLeft",
+      size: { width: zoneWidth * 0.5 - entranceHalfWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: -(entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth) * 0.5), z: -zoneDepth * 0.5 },
+    },
+    {
+      name: "frontRight",
+      size: { width: zoneWidth * 0.5 - entranceHalfWidth + wallThickness, height: wallHeight, depth: wallThickness },
+      position: { x: entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth) * 0.5, z: -zoneDepth * 0.5 },
+    },
+  ];
+
+  wallSegments.forEach((segment) => {
+    const wall = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_wall_${segment.name}`,
+      segment.size,
+      scene
+    );
+    wall.position = toWorld(segment.position.x, wallHeight * 0.5, segment.position.z);
+    wall.rotation.y = yaw;
+    wall.isPickable = false;
+    wall.material = wallMaterial;
+    wall.checkCollisions = true;
+  });
+
+  const entryHeader = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_entryHeader`,
+    { width: entranceHalfWidth * 2 + 0.85, height: 0.42, depth: wallThickness },
+    scene
+  );
+  entryHeader.position = toWorld(0, wallHeight - 0.35, -zoneDepth * 0.5);
+  entryHeader.rotation.y = yaw;
+  entryHeader.isPickable = false;
+  entryHeader.material = wallMaterial;
+  entryHeader.checkCollisions = true;
+
+  const createPad = (
+    name: string,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    height = 0.16,
+    material = sidewalkMaterial
+  ) => {
+    const pad = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_${name}`,
+      { width, height, depth },
+      scene
+    );
+    pad.position = toWorld(x, height * 0.5 + 0.03, z);
+    pad.rotation.y = yaw;
+    pad.isPickable = false;
+    pad.material = material;
+    pad.checkCollisions = true;
+    return pad;
+  };
+
+  roadRects.forEach((rect) => {
+    const road = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_road_${rect.name}`,
+      { width: rect.maxX - rect.minX, height: 0.03, depth: rect.maxZ - rect.minZ },
+      scene
+    );
+    road.position = toWorld(
+      (rect.minX + rect.maxX) * 0.5,
+      0.095,
+      (rect.minZ + rect.maxZ) * 0.5
+    );
+    road.rotation.y = yaw;
+    road.isPickable = false;
+    road.material = asphaltMaterial;
+    road.checkCollisions = true;
+  });
+
+  const perimeterPads = [
+    { name: "sidewalkNorth", x: 0, z: zoneDepth * 0.5 - 1.45, width: zoneWidth - 0.8, depth: 2.3 },
+    {
+      name: "sidewalkSouthLeft",
+      x: -(entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth - 0.65) * 0.5),
+      z: -zoneDepth * 0.5 + 1.45,
+      width: zoneWidth * 0.5 - entranceHalfWidth - 0.65,
+      depth: 2.3,
+    },
+    {
+      name: "sidewalkSouthRight",
+      x: entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth - 0.65) * 0.5,
+      z: -zoneDepth * 0.5 + 1.45,
+      width: zoneWidth * 0.5 - entranceHalfWidth - 0.65,
+      depth: 2.3,
+    },
+    { name: "sidewalkWest", x: -zoneWidth * 0.5 + 1.45, z: 0, width: 2.3, depth: zoneDepth - 0.8 },
+    { name: "sidewalkEast", x: zoneWidth * 0.5 - 1.45, z: 0, width: 2.3, depth: zoneDepth - 0.8 },
+  ];
+  perimeterPads.forEach((pad) =>
+    createPad(pad.name, pad.x, pad.z, pad.width, pad.depth)
+  );
+
+  const cityBlocks = [
+    { name: "blockSouthWest", x: -12.0, z: -7.9, width: 11.6, depth: 7.2 },
+    { name: "blockSouthEast", x: 12.0, z: -7.9, width: 11.6, depth: 7.2 },
+    { name: "blockMarketWest", x: -12.0, z: 11.4, width: 11.6, depth: 6.8 },
+    { name: "blockMarketEast", x: 12.0, z: 11.4, width: 11.6, depth: 6.8 },
+    { name: "blockWestSouth", x: -32.0, z: -7.9, width: 4.2, depth: 7.2 },
+    { name: "blockEastSouth", x: 32.0, z: -7.9, width: 4.2, depth: 7.2 },
+    { name: "blockWestMarket", x: -32.0, z: 11.4, width: 4.2, depth: 6.8 },
+    { name: "blockEastMarket", x: 32.0, z: 11.4, width: 4.2, depth: 6.8 },
+    { name: "blockRearWest", x: -12.0, z: 31.6, width: 11.6, depth: 6.2 },
+    { name: "blockRearCenter", x: 0, z: 31.6, width: 11.8, depth: 6.2 },
+    { name: "blockRearEast", x: 12.0, z: 31.6, width: 11.6, depth: 6.2 },
+    { name: "blockWestRear", x: -32.0, z: 31.6, width: 4.2, depth: 6.2 },
+    { name: "blockEastRear", x: 32.0, z: 31.6, width: 4.2, depth: 6.2 },
+  ];
+  cityBlocks.forEach((block) =>
+    createPad(block.name, block.x, block.z, block.width, block.depth, 0.18)
+  );
+
+  const dashColor = new BABYLON.Color3(0.94, 0.92, 0.76);
+  const crosswalkColor = new BABYLON.Color3(0.95, 0.95, 0.93);
+
+  const addVerticalDashes = (
+    prefix: string,
+    x: number,
+    zStart: number,
+    zEnd: number,
+    step: number,
+    dashDepth: number
+  ) => {
+    let index = 0;
+    for (let z = zStart; z <= zEnd; z += step) {
+      createDrivingRoadStripe(
+        scene,
+        `${project.id}_${prefix}_${index}`,
+        toWorld(x, 0.118, z),
+        yaw,
+        0.18,
+        dashDepth,
+        dashColor,
+        0.92
+      );
+      index += 1;
+    }
+  };
+
+  const addHorizontalDashes = (
+    prefix: string,
+    z: number,
+    xStart: number,
+    xEnd: number,
+    step: number,
+    dashWidth: number
+  ) => {
+    let index = 0;
+    for (let x = xStart; x <= xEnd; x += step) {
+      createDrivingRoadStripe(
+        scene,
+        `${project.id}_${prefix}_${index}`,
+        toWorld(x, 0.118, z),
+        yaw,
+        dashWidth,
+        0.18,
+        dashColor,
+        0.92
+      );
+      index += 1;
+    }
+  };
+
+  addVerticalDashes("entryDashes", 0, -34.2, -25.2, 2.8, 1.22);
+  addVerticalDashes("mainDashes", 0, -20.2, 31.4, 3.2, 1.22);
+  addVerticalDashes("westDashes", -23.8, -20.2, 27.6, 3.2, 1.14);
+  addVerticalDashes("eastDashes", 23.8, -20.2, 27.6, 3.2, 1.14);
+  addHorizontalDashes("southStreetDashes", -17.6, -31.2, 31.2, 3.2, 1.2);
+  addHorizontalDashes("marketStreetDashes", 1.8, -31.2, 31.2, 3.2, 1.2);
+  addHorizontalDashes("northStreetDashes", 21.2, -31.2, 31.2, 3.2, 1.2);
+  addHorizontalDashes("westConnectorDashes", 11.8, -16.4, -6.8, 3, 1.02);
+  addHorizontalDashes("eastConnectorDashes", 11.8, 6.8, 16.4, 3, 1.02);
+
+  createDrivingRoadStripe(
+    scene,
+    `${project.id}_startLine`,
+    toWorld(0, 0.124, -31.2),
+    yaw,
+    6.4,
+    0.22,
+    project.color,
+    0.96
+  );
+
+  for (let index = 0; index < 8; index += 1) {
+    createDrivingRoadStripe(
+      scene,
+      `${project.id}_crosswalkSouth_${index}`,
+      toWorld(-3.2 + index * 0.9, 0.118, -10.1),
+      yaw,
+      0.52,
+      1.24,
+      crosswalkColor,
+      0.88
+    );
+    createDrivingRoadStripe(
+      scene,
+      `${project.id}_crosswalkMarket_${index}`,
+      toWorld(-3.2 + index * 0.9, 0.118, 9.6),
+      yaw,
+      0.52,
+      1.24,
+      crosswalkColor,
+      0.88
+    );
+    createDrivingRoadStripe(
+      scene,
+      `${project.id}_crosswalkNorth_${index}`,
+      toWorld(-3.2 + index * 0.9, 0.118, 29),
+      yaw,
+      0.52,
+      1.24,
+      crosswalkColor,
+      0.88
+    );
+  }
+
+  const buildingData = [
+    { name: "southWestRetail", x: -12.0, z: -8.1, width: 10.2, depth: 3.4, height: 4.0, rotation: yaw },
+    { name: "southEastRetail", x: 12.0, z: -8.1, width: 10.2, depth: 3.4, height: 4.2, rotation: yaw },
+    { name: "marketWestOffice", x: -12.0, z: 11.2, width: 10.0, depth: 5.0, height: 5.3, rotation: yaw },
+    { name: "marketEastOffice", x: 12.0, z: 11.2, width: 10.0, depth: 5.0, height: 5.5, rotation: yaw },
+    { name: "westSouthCorner", x: -32.0, z: -8.0, width: 5.4, depth: 2.2, height: 5.0, rotation: yaw + Math.PI / 2 },
+    { name: "westMidCorner", x: -32.0, z: 11.2, width: 5.4, depth: 2.2, height: 5.9, rotation: yaw + Math.PI / 2 },
+    { name: "westRearTower", x: -32.0, z: 31.4, width: 6.0, depth: 2.2, height: 7.3, rotation: yaw + Math.PI / 2 },
+    { name: "eastSouthCorner", x: 32.0, z: -8.0, width: 5.4, depth: 2.2, height: 4.8, rotation: yaw - Math.PI / 2 },
+    { name: "eastMidCorner", x: 32.0, z: 11.2, width: 5.4, depth: 2.2, height: 5.6, rotation: yaw - Math.PI / 2 },
+    { name: "eastRearTower", x: 32.0, z: 31.4, width: 6.0, depth: 2.2, height: 7.4, rotation: yaw - Math.PI / 2 },
+    { name: "rearWestBlock", x: -12.0, z: 31.4, width: 10.2, depth: 4.4, height: 5.7, rotation: yaw + Math.PI },
+    { name: "rearCenterStation", x: 0, z: 31.4, width: 10.8, depth: 4.4, height: 4.8, rotation: yaw + Math.PI },
+    { name: "rearEastBlock", x: 12.0, z: 31.4, width: 10.2, depth: 4.4, height: 5.9, rotation: yaw + Math.PI },
+  ];
+
+  buildingData.forEach((building) => {
+    createDrivingBuilding(
+      scene,
+      `${project.id}_${building.name}`,
+      toWorld(building.x, 0, building.z),
+      building.rotation,
+      building.width,
+      building.depth,
+      building.height,
+      project.color
+    );
+  });
+
+  const lamps = [
+    { x: -8.4, z: -27.2, rot: yaw },
+    { x: 8.4, z: -27.2, rot: yaw },
+    { x: -8.4, z: -7.2, rot: yaw },
+    { x: 8.4, z: -7.2, rot: yaw },
+    { x: -8.4, z: 12.2, rot: yaw },
+    { x: 8.4, z: 12.2, rot: yaw },
+    { x: -8.4, z: 30.2, rot: yaw },
+    { x: 8.4, z: 30.2, rot: yaw },
+    { x: -31.2, z: -10.4, rot: yaw + Math.PI / 2 },
+    { x: -31.2, z: 11.8, rot: yaw + Math.PI / 2 },
+    { x: 31.2, z: -10.4, rot: yaw - Math.PI / 2 },
+    { x: 31.2, z: 11.8, rot: yaw - Math.PI / 2 },
+  ];
+  lamps.forEach((lamp, index) => {
+    createDrivingStreetLamp(
+      scene,
+      `${project.id}_streetLamp_${index}`,
+      toWorld(lamp.x, 0, lamp.z),
+      lamp.rot,
+      project.color
+    );
+  });
+
+  const planterBaseMaterial = createMaterial(
+    scene,
+    `${project.id}_planterBaseMat`,
+    new BABYLON.Color3(0.22, 0.24, 0.26),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+  const planterLeafMaterial = createMaterial(
+    scene,
+    `${project.id}_planterLeafMat`,
+    new BABYLON.Color3(0.18, 0.34, 0.22),
+    new BABYLON.Color3(0.02, 0.04, 0.02)
+  );
+
+  for (const planter of [
+    { x: -8.6, z: -11.2, w: 1.25, d: 1.25 },
+    { x: 8.6, z: -11.2, w: 1.25, d: 1.25 },
+    { x: -8.6, z: 9.5, w: 1.25, d: 1.25 },
+    { x: 8.6, z: 9.5, w: 1.25, d: 1.25 },
+    { x: -17.2, z: 11.8, w: 1.02, d: 1.02 },
+    { x: 17.2, z: 11.8, w: 1.02, d: 1.02 },
+  ]) {
+    const base = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_planter_${planter.x}_${planter.z}`,
+      { width: planter.w, height: 0.42, depth: planter.d },
+      scene
+    );
+    base.position = toWorld(planter.x, 0.31, planter.z);
+    base.rotation.y = yaw;
+    base.isPickable = false;
+    base.material = planterBaseMaterial;
+    base.checkCollisions = true;
+
+    const shrub = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_planterShrub_${planter.x}_${planter.z}`,
+      { diameter: Math.min(planter.w, planter.d) * 0.72, segments: 10 },
+      scene
+    );
+    shrub.position = toWorld(planter.x, 0.72, planter.z);
+    shrub.scaling.y = 0.7;
+    shrub.isPickable = false;
+    shrub.material = planterLeafMaterial;
+  }
+
+  const shelterFrameMaterial = createMaterial(
+    scene,
+    `${project.id}_shelterFrameMat`,
+    new BABYLON.Color3(0.14, 0.16, 0.18),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+  const shelterGlassMaterial = createMaterial(
+    scene,
+    `${project.id}_shelterGlassMat`,
+    new BABYLON.Color3(0.22, 0.28, 0.32),
+    project.color.scale(0.08),
+    0.48
+  );
+
+  for (const shelter of [
+    { name: "westShelter", x: -15.2, z: 10.1, rot: yaw + Math.PI / 2 },
+    { name: "eastShelter", x: 15.2, z: 10.1, rot: yaw - Math.PI / 2 },
+  ]) {
+    const roof = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_${shelter.name}_roof`,
+      { width: 2.2, height: 0.08, depth: 0.92 },
+      scene
+    );
+    roof.position = toWorld(shelter.x, 2.18, shelter.z);
+    roof.rotation.y = shelter.rot;
+    roof.isPickable = false;
+    roof.material = shelterFrameMaterial;
+    roof.checkCollisions = true;
+
+    for (const side of [-1, 1]) {
+      const post = BABYLON.MeshBuilder.CreateBox(
+        `${project.id}_${shelter.name}_post_${side}`,
+        { width: 0.08, height: 2.05, depth: 0.08 },
+        scene
+      );
+      post.position = toWorld(
+        shelter.x + Math.cos(shelter.rot) * 0.68 * side,
+        1.02,
+        shelter.z + Math.sin(shelter.rot) * 0.68 * side
+      );
+      post.rotation.y = shelter.rot;
+      post.isPickable = false;
+      post.material = shelterFrameMaterial;
+      post.checkCollisions = true;
+    }
+
+    const glass = BABYLON.MeshBuilder.CreatePlane(
+      `${project.id}_${shelter.name}_glass`,
+      { width: 1.78, height: 1.35 },
+      scene
+    );
+    glass.position = toWorld(shelter.x, 1.28, shelter.z);
+    glass.rotation.y = shelter.rot;
+    glass.isPickable = false;
+    glass.material = shelterGlassMaterial;
+  }
+
+  for (const parked of [
+    {
+      name: "parkedWestSouth",
+      x: -15.6,
+      z: -18.2,
+      rot: yaw,
+      color: new BABYLON.Color3(0.14, 0.3, 0.62),
+      scale: 0.94,
+    },
+    {
+      name: "parkedEastSouth",
+      x: 15.6,
+      z: -18.2,
+      rot: yaw,
+      color: new BABYLON.Color3(0.66, 0.66, 0.7),
+      scale: 0.9,
+    },
+    {
+      name: "parkedWestMarket",
+      x: -15.2,
+      z: 1.8,
+      rot: yaw,
+      color: new BABYLON.Color3(0.3, 0.44, 0.26),
+      scale: 0.92,
+    },
+    {
+      name: "parkedEastMarket",
+      x: 15.2,
+      z: 1.8,
+      rot: yaw,
+      color: new BABYLON.Color3(0.64, 0.3, 0.18),
+      scale: 0.9,
+    },
+    {
+      name: "parkedNorthWest",
+      x: -24.1,
+      z: 30.2,
+      rot: yaw + Math.PI / 2,
+      color: new BABYLON.Color3(0.18, 0.46, 0.34),
+      scale: 0.92,
+    },
+    {
+      name: "parkedNorthEast",
+      x: 24.1,
+      z: 30.2,
+      rot: yaw - Math.PI / 2,
+      color: new BABYLON.Color3(0.42, 0.32, 0.62),
+      scale: 0.92,
+    },
+  ]) {
+    createDrivingCar(
+      scene,
+      project,
+      toWorld(parked.x, 0.02, parked.z),
+      parked.rot,
+      {
+        interactive: false,
+        scale: parked.scale,
+        bodyColor: parked.color,
+      }
+    );
+  }
+
+  const startGateLeft = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_startGateLeft`,
+    { width: 0.18, height: 2.6, depth: 0.18 },
+    scene
+  );
+  startGateLeft.position = toWorld(-3.1, 1.3, -31.8);
+  startGateLeft.rotation.y = yaw;
+  startGateLeft.isPickable = false;
+  startGateLeft.material = wallMaterial;
+
+  const startGateRight = startGateLeft.clone(`${project.id}_startGateRight`);
+  startGateRight.position = toWorld(3.1, 1.3, -31.8);
+
+  const startGateBeam = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_startGateBeam`,
+    { width: 6.5, height: 0.18, depth: 0.18 },
+    scene
+  );
+  startGateBeam.position = toWorld(0, 2.56, -31.8);
+  startGateBeam.rotation.y = yaw;
+  startGateBeam.isPickable = false;
+  startGateBeam.material = createMaterial(
+    scene,
+    `${project.id}_startGateBeamMat`,
+    new BABYLON.Color3(0.12, 0.14, 0.18),
+    project.color.scale(0.2)
+  );
+
+  createDecorScreen(
+    scene,
+    `${project.id}_diagScreen`,
+    toWorld(-13.8, 2.35, -29.2),
+    yaw,
+    project.color,
+    4.2,
+    1.18
+  );
+
+  const fillLight = new BABYLON.PointLight(
+    `${project.id}_fillLight`,
+    toWorld(0, 5.6, -4.8),
+    scene
+  );
+  fillLight.diffuse = new BABYLON.Color3(0.38, 0.42, 0.48);
+  fillLight.intensity = 0.42;
+  fillLight.range = 68;
+
+  const cityGlow = new BABYLON.PointLight(
+    `${project.id}_cityGlow`,
+    toWorld(0, 7.2, 17),
+    scene
+  );
+  cityGlow.diffuse = project.color.scale(0.85).add(new BABYLON.Color3(0.12, 0.12, 0.12));
+  cityGlow.intensity = 0.22;
+  cityGlow.range = 44;
+}
+
 function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
   const { inward, right, back, yaw } = getRoomBasis(project);
   const front = project.position.add(inward.scale(2.4));
@@ -3810,7 +5932,7 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
     const islandCenter = project.position.add(right.scale(3.05)).add(back.scale(0.35));
     const rearPrepCounterCenter = kitchenRear.add(right.scale(-0.55));
 
-    const prepCounter = createKitchenCounterModule(
+    createKitchenCounterModule(
       scene,
       `${project.id}_prepCounter`,
       rearPrepCounterCenter,
@@ -3828,7 +5950,7 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
       1.0,
       project.color
     );
-    createKitchenCounterModule(
+    const sideCounter = createKitchenCounterModule(
       scene,
       `${project.id}_sideCounter`,
       leftRun,
@@ -3873,8 +5995,8 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
       { width: 1.08, height: 0.16, depth: 0.54 },
       scene
     );
-    sinkBasin.parent = prepCounter;
-    sinkBasin.position = new BABYLON.Vector3(-1.34, 0.9, -0.02);
+    sinkBasin.parent = sideCounter;
+    sinkBasin.position = new BABYLON.Vector3(1.02, 0.95, -0.02);
     sinkBasin.isPickable = false;
     sinkBasin.material = createMaterial(
       scene,
@@ -3888,8 +6010,8 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
       { diameter: 0.06, height: 0.46, tessellation: 12 },
       scene
     );
-    faucet.parent = prepCounter;
-    faucet.position = new BABYLON.Vector3(-1.02, 1.18, 0);
+    faucet.parent = sideCounter;
+    faucet.position = new BABYLON.Vector3(1.3, 1.22, 0);
     faucet.isPickable = false;
     faucet.material = createMaterial(
       scene,
@@ -3920,7 +6042,7 @@ function addRoomTheme(scene: BABYLON.Scene, project: ProjectData) {
       scene
     );
     pot.parent = island;
-    pot.position = new BABYLON.Vector3(0.58, 1.1, 0.08);
+    pot.position = new BABYLON.Vector3(0.08, 1.1, 0.16);
     pot.isPickable = false;
     pot.material = createMaterial(
       scene,
@@ -5246,6 +7368,7 @@ function createProjectRoom(scene: BABYLON.Scene, project: ProjectData) {
   const { back, right, inward, yaw } = getRoomBasis(project);
   const isSlime = project.id === "survivorSlime";
   const isCooking = project.id === "vrCooking";
+  const isDriving = project.id === "drivingSim";
 
   if (isSlime) {
     createDesertTerrain(scene, project);
@@ -5256,6 +7379,11 @@ function createProjectRoom(scene: BABYLON.Scene, project: ProjectData) {
   if (isCooking) {
     createVrCookingZone(scene, project);
     addRoomTheme(scene, project);
+    return;
+  }
+
+  if (isDriving) {
+    createDrivingSimZone(scene, project);
     return;
   }
 
@@ -5361,7 +7489,9 @@ function createProjectLabel(
 ) {
   const { inward, right, yaw } = getRoomBasis(project);
   const isEntrancePanel =
-    project.id === "survivorSlime" || project.id === "vrCooking";
+    project.id === "survivorSlime" ||
+    project.id === "vrCooking" ||
+    project.id === "drivingSim";
   const labelTexture = new BABYLON.DynamicTexture(
     `${project.id}_labelTexture`,
     { width: 1024, height: 256 },
@@ -5370,23 +7500,25 @@ function createProjectLabel(
   );
   const context = labelTexture.getContext();
   labelTexture.hasAlpha = true;
-
-  context.clearRect(0, 0, 1024, 256);
-  context.fillStyle = "rgba(4, 8, 18, 0.78)";
-  context.fillRect(12, 30, 1000, 196);
-  context.strokeStyle = rgbString(project.color);
-  context.lineWidth = 4;
-  context.strokeRect(12, 30, 1000, 196);
-  context.fillStyle = "rgba(127, 231, 203, 0.95)";
-  context.font = "600 34px Segoe UI";
-  context.fillText(project.accent.toUpperCase(), 48, 88);
-  context.fillStyle = "rgba(243, 246, 255, 0.96)";
-  context.font = "700 62px Segoe UI";
-  context.fillText(project.title, 48, 160);
-  context.fillStyle = "rgba(185, 206, 255, 0.86)";
-  context.font = "400 30px Segoe UI";
-  context.fillText(project.engine, 48, 208);
-  labelTexture.update();
+  registerLocaleRefresher(() => {
+    const text = getProjectText(project);
+    context.clearRect(0, 0, 1024, 256);
+    context.fillStyle = "rgba(4, 8, 18, 0.78)";
+    context.fillRect(12, 30, 1000, 196);
+    context.strokeStyle = rgbString(project.color);
+    context.lineWidth = 4;
+    context.strokeRect(12, 30, 1000, 196);
+    context.fillStyle = "rgba(127, 231, 203, 0.95)";
+    context.font = "600 34px Segoe UI";
+    context.fillText(text.accent.toUpperCase(), 48, 88);
+    context.fillStyle = "rgba(243, 246, 255, 0.96)";
+    context.font = "700 62px Segoe UI";
+    context.fillText(text.title, 48, 160);
+    context.fillStyle = "rgba(185, 206, 255, 0.86)";
+    context.font = "400 30px Segoe UI";
+    context.fillText(text.engine, 48, 208);
+    labelTexture.update();
+  });
 
   const labelMaterial = new BABYLON.StandardMaterial(`${project.id}_labelMat`, scene);
   labelMaterial.diffuseTexture = labelTexture;
@@ -5404,9 +7536,16 @@ function createProjectLabel(
     const entranceOffset =
       project.id === "survivorSlime"
         ? 15.82
-        : VR_COOKING_ZONE_DEPTH * 0.5 + 0.4;
-    const entranceHeight = project.id === "survivorSlime" ? 3.12 : 3.78;
-    const entranceLateralOffset = project.id === "vrCooking" ? 1 : 0;
+        : project.id === "vrCooking"
+          ? VR_COOKING_ZONE_DEPTH * 0.5 + 0.4
+          : DRIVING_ZONE_DEPTH * 0.5 + 0.42;
+    const entranceHeight =
+      project.id === "survivorSlime"
+        ? 3.12
+        : project.id === "vrCooking"
+          ? 3.78
+          : 3.64;
+    const entranceLateralOffset = 0;
     label.position = project.position
       .add(inward.scale(entranceOffset))
       .add(right.scale(entranceLateralOffset))
@@ -5428,6 +7567,7 @@ function createProjectLabel(
     label.isPickable = false;
   }
   label.material = labelMaterial;
+  createProjectWipSign(scene, project);
 }
 
 function createProjectStand(scene: BABYLON.Scene, project: ProjectData) {
@@ -5665,26 +7805,27 @@ function createFloatingParticles(scene: BABYLON.Scene) {
 }
 
 function createBounds(scene: BABYLON.Scene) {
+  const halfWorld = WORLD_SIZE * 0.5;
   const walls = [
     {
       name: "north",
-      size: { width: 56, height: 6, depth: 1 },
-      position: new BABYLON.Vector3(0, 3, -27.5),
+      size: { width: WORLD_SIZE, height: 6, depth: 1 },
+      position: new BABYLON.Vector3(0, 3, -halfWorld + 0.5),
     },
     {
       name: "south",
-      size: { width: 56, height: 6, depth: 1 },
-      position: new BABYLON.Vector3(0, 3, 27.5),
+      size: { width: WORLD_SIZE, height: 6, depth: 1 },
+      position: new BABYLON.Vector3(0, 3, halfWorld - 0.5),
     },
     {
       name: "west",
-      size: { width: 1, height: 6, depth: 56 },
-      position: new BABYLON.Vector3(-27.5, 3, 0),
+      size: { width: 1, height: 6, depth: WORLD_SIZE },
+      position: new BABYLON.Vector3(-halfWorld + 0.5, 3, 0),
     },
     {
       name: "east",
-      size: { width: 1, height: 6, depth: 56 },
-      position: new BABYLON.Vector3(27.5, 3, 0),
+      size: { width: 1, height: 6, depth: WORLD_SIZE },
+      position: new BABYLON.Vector3(halfWorld - 0.5, 3, 0),
     },
   ];
 
@@ -5695,6 +7836,379 @@ function createBounds(scene: BABYLON.Scene) {
     mesh.isPickable = false;
     mesh.checkCollisions = true;
   });
+}
+
+function createDrivingSimSystem(
+  scene: BABYLON.Scene,
+  project: ProjectData,
+  camera: BABYLON.UniversalCamera,
+  playerController: PlayerController
+): DrivingSimSystem {
+  const { right, back, yaw } = getRoomBasis(project);
+  const zoneHalfWidth = DRIVING_ZONE_WIDTH * 0.5;
+  const zoneHalfDepth = DRIVING_ZONE_DEPTH * 0.5;
+  const roadRects = getDrivingRoadRects();
+  const drivingKeys = new Set([
+    "KeyW",
+    "KeyZ",
+    "KeyS",
+    "KeyA",
+    "KeyQ",
+    "KeyD",
+    "ArrowUp",
+    "ArrowDown",
+    "ArrowLeft",
+    "ArrowRight",
+    "Space",
+  ]);
+  const pressedKeys = new Set<string>();
+  const toWorld = (x: number, y: number, z: number) =>
+    project.position
+      .add(right.scale(x))
+      .add(back.scale(z))
+      .add(new BABYLON.Vector3(0, y, 0));
+  const toLocal = (position: BABYLON.Vector3) => {
+    const offset = position.subtract(project.position);
+    return {
+      x: BABYLON.Vector3.Dot(offset, right),
+      z: BABYLON.Vector3.Dot(offset, back),
+    };
+  };
+  const getForward = (rotationY: number) =>
+    new BABYLON.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
+  const car = createDrivingCar(
+    scene,
+    project,
+    toWorld(0, 0.02, -31.8),
+    yaw + Math.PI
+  );
+  let driving = false;
+  let speed = 0;
+  let steering = 0;
+  let focusedInteraction: DrivingInteractionId | null = null;
+
+  function isInsideZonePoint(position: BABYLON.Vector3) {
+    const local = toLocal(position);
+    return (
+      Math.abs(local.x) <= zoneHalfWidth - 0.35 &&
+      Math.abs(local.z) <= zoneHalfDepth - 0.35
+    );
+  }
+
+  function enterVehicle() {
+    if (driving) {
+      return;
+    }
+
+    driving = true;
+    speed = 0;
+    steering = 0;
+    isDrivingVehicle = true;
+    playerController.resetInput();
+    camera.rotation.z = 0;
+    camera.detachControl();
+    const enterForward = getForward(car.root.rotation.y);
+    const cockpitPosition = car.cockpitAnchor.getAbsolutePosition();
+    camera.position.copyFrom(cockpitPosition);
+    lookAtTarget(
+      camera,
+      cockpitPosition
+        .add(enterForward.scale(7.6))
+        .add(new BABYLON.Vector3(0, 0.04, 0))
+    );
+    camera.fov = WALK_FOV + 0.01;
+    syncCrosshairVisibility();
+    updateStatus(getFreeRoamStatusMessage());
+  }
+
+  function exitVehicle() {
+    if (!driving) {
+      return;
+    }
+
+    driving = false;
+    speed = 0;
+    steering = 0;
+
+    const forward = getForward(car.root.rotation.y);
+    const carRight = new BABYLON.Vector3(forward.z, 0, -forward.x);
+    const exitPosition = car.root.position
+      .subtract(carRight.scale(1.8))
+      .add(new BABYLON.Vector3(0, PLAYER_HEIGHT, 0));
+    playerController.syncPosition(exitPosition);
+    camera.attachControl(canvas, true);
+    camera.fov = WALK_FOV;
+    lookAtTarget(
+      camera,
+      car.root.position.add(forward.scale(6.2)).add(new BABYLON.Vector3(0, 0.9, 0))
+    );
+    isDrivingVehicle = false;
+    syncCrosshairVisibility();
+    updateStatus(getFreeRoamStatusMessage());
+  }
+
+  function isPressed(...codes: string[]) {
+    return codes.some((code) => pressedKeys.has(code));
+  }
+
+  window.addEventListener("keydown", (event) => {
+    if (!drivingKeys.has(event.code)) {
+      return;
+    }
+
+    pressedKeys.add(event.code);
+    event.preventDefault();
+  });
+
+  window.addEventListener("keyup", (event) => {
+    if (!drivingKeys.has(event.code)) {
+      return;
+    }
+
+    pressedKeys.delete(event.code);
+    event.preventDefault();
+  });
+
+  return {
+    interact(allowExit = true) {
+      if (driving) {
+        if (!allowExit) {
+          return false;
+        }
+        exitVehicle();
+        return true;
+      }
+
+      if (
+        !isInsideZonePoint(camera.position) ||
+        focusedInteraction !== "car" ||
+        !isPointerLocked
+      ) {
+        return false;
+      }
+
+      enterVehicle();
+      return true;
+    },
+    isPlayerInsideZone() {
+      return driving || isInsideZonePoint(camera.position);
+    },
+    isDriving() {
+      return driving;
+    },
+    getSpeedKph() {
+      return Math.round(Math.abs(speed) * 3.6);
+    },
+    update() {
+      const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
+      if (dt <= 0) {
+        return;
+      }
+
+      const visible =
+        projectPanel.classList.contains("hidden") &&
+        !isOverviewOpen() &&
+        (driving || isInsideZonePoint(camera.position));
+      const canControl = visible && isPointerLocked;
+
+      if (driving) {
+        const throttleInput =
+          canControl
+            ? (isPressed("KeyW", "KeyZ", "ArrowUp") ? 1 : 0) -
+              (isPressed("KeyS", "ArrowDown") ? 1 : 0)
+            : 0;
+        const steeringInput =
+          canControl
+            ? (isPressed("KeyD", "ArrowRight") ? 1 : 0) -
+              (isPressed("KeyA", "KeyQ", "ArrowLeft") ? 1 : 0)
+            : 0;
+        const brakeHeld = canControl && isPressed("Space");
+
+        const speedRatioBefore = BABYLON.Scalar.Clamp(
+          Math.abs(speed) / DRIVING_MAX_FORWARD_SPEED,
+          0,
+          1
+        );
+
+        if (throttleInput > 0) {
+          speed = moveToward(
+            speed,
+            DRIVING_MAX_FORWARD_SPEED,
+            DRIVING_ACCELERATION * (speed < -0.1 ? 2.1 : 1) * dt
+          );
+        } else if (throttleInput < 0) {
+          speed = moveToward(
+            speed,
+            -DRIVING_MAX_REVERSE_SPEED,
+            DRIVING_REVERSE_ACCELERATION * (speed > 0.1 ? 2.35 : 1) * dt
+          );
+        } else {
+          speed = moveToward(
+            speed,
+            0,
+            DRIVING_COAST_DECELERATION * (0.85 + speedRatioBefore * 0.7) * dt
+          );
+        }
+
+        if (brakeHeld) {
+          speed = moveToward(
+            speed,
+            0,
+            DRIVING_BRAKE_DECELERATION * (1.1 + speedRatioBefore * 0.65) * dt
+          );
+        }
+
+        steering = BABYLON.Scalar.Lerp(
+          steering,
+          steeringInput,
+          1 -
+            Math.exp(
+              -(DRIVING_STEER_RESPONSE + (Math.abs(speed) < 0.4 ? 3 : 0)) * dt
+            )
+        );
+
+        const speedRatio = BABYLON.Scalar.Clamp(
+          Math.abs(speed) / DRIVING_MAX_FORWARD_SPEED,
+          0,
+          1
+        );
+        const steerGrip = 1 - speedRatio * 0.48;
+
+        if (speedRatio > 0.005 && Math.abs(steering) > 0.01) {
+          car.root.rotation.y +=
+            steering *
+            DRIVING_TURN_RATE *
+            steerGrip *
+            (0.24 + speedRatio * 1.04) *
+            dt *
+            Math.sign(speed || throttleInput || 1);
+        }
+
+        const forward = getForward(car.root.rotation.y);
+        const proposedPosition = car.root.position.add(forward.scale(speed * dt));
+        const proposedLocal = toLocal(proposedPosition);
+        if (isInsideDrivingRoad(roadRects, proposedLocal.x, proposedLocal.z)) {
+          car.root.position.copyFrom(proposedPosition);
+        } else {
+          speed = moveToward(speed, 0, DRIVING_BRAKE_DECELERATION * 2.2 * dt);
+        }
+
+        car.chassis.rotation.z = BABYLON.Scalar.Lerp(
+          car.chassis.rotation.z,
+          -steering * speedRatio * 0.09,
+          1 - Math.exp(-dt * 7)
+        );
+        car.steeringPivots.forEach((pivot) => {
+          pivot.rotation.y = steering * 0.45;
+        });
+        car.steeringWheel.rotation.y = -steering * 0.7;
+        car.wheels.forEach((wheel) => {
+          wheel.rotation.x += (speed * dt) / 0.36;
+        });
+
+        const cockpitPosition = car.cockpitAnchor.getAbsolutePosition();
+        const carRight = new BABYLON.Vector3(forward.z, 0, -forward.x);
+        camera.position.copyFrom(cockpitPosition);
+        lookAtTarget(
+          camera,
+          cockpitPosition
+            .add(forward.scale(7.6 + speedRatio * 1.4))
+            .add(carRight.scale(steering * 0.42))
+            .add(new BABYLON.Vector3(0, 0.03 + speedRatio * 0.04, 0))
+        );
+        camera.fov = BABYLON.Scalar.Lerp(
+          camera.fov,
+          WALK_FOV + 0.01 + speedRatio * 0.02,
+          1 - Math.exp(-dt * 6)
+        );
+        focusedInteraction = null;
+      } else {
+        car.chassis.rotation.z = BABYLON.Scalar.Lerp(
+          car.chassis.rotation.z,
+          0,
+          1 - Math.exp(-dt * 8)
+        );
+        car.steeringPivots.forEach((pivot) => {
+          pivot.rotation.y = BABYLON.Scalar.Lerp(
+            pivot.rotation.y,
+            0,
+            1 - Math.exp(-dt * 8)
+          );
+        });
+        car.steeringWheel.rotation.y = BABYLON.Scalar.Lerp(
+          car.steeringWheel.rotation.y,
+          0,
+          1 - Math.exp(-dt * 8)
+        );
+        if (visible && isPointerLocked) {
+          const pick = scene.pickWithRay(
+            camera.getForwardRay(DRIVING_INTERACTION_DISTANCE),
+            (mesh) =>
+              Boolean(
+                (mesh.metadata as DrivingInteractableMetadata | undefined)
+                  ?.drivingInteractableId
+              )
+          );
+          focusedInteraction =
+            pick?.hit &&
+            (pick.distance ?? Number.POSITIVE_INFINITY) <=
+              DRIVING_INTERACTION_DISTANCE
+              ? ((pick.pickedMesh?.metadata as DrivingInteractableMetadata | undefined)
+                  ?.drivingInteractableId ?? null)
+              : null;
+        } else {
+          focusedInteraction = null;
+        }
+      }
+
+      if (car.interactionHalo.material instanceof BABYLON.StandardMaterial) {
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
+        car.interactionHalo.material.alpha = driving
+          ? 0
+          : focusedInteraction === "car"
+            ? 0.34 + pulse * 0.07
+            : visible
+              ? 0.12
+              : 0.06;
+        car.interactionHalo.material.emissiveColor = driving
+          ? BABYLON.Color3.Black()
+          : project.color.scale(
+              focusedInteraction === "car" ? 0.52 + pulse * 0.16 : 0.18
+            );
+      }
+      car.interactionHalo.setEnabled(!driving);
+
+      drivingHud.classList.toggle("hidden", !visible);
+      if (visible) {
+        drivingSpeed.textContent = `${Math.round(Math.abs(speed) * 3.6)
+          .toString()
+          .padStart(3, "0")} km/h`;
+        drivingMode.textContent = driving
+          ? currentLanguage === "fr"
+            ? "Au volant"
+            : "Driving"
+          : focusedInteraction === "car"
+            ? currentLanguage === "fr"
+              ? "Vehicule pret"
+              : "Vehicle ready"
+            : getCurrentUiText().drivingModeOnFoot;
+        drivingMode.classList.toggle("active", driving);
+        drivingHint.textContent = driving
+          ? currentLanguage === "fr"
+            ? "ZQSD / WASD pour accelerer et tourner. Space freine, E pour sortir du vehicule."
+            : "ZQSD / WASD to accelerate and steer. Space brakes, E exits the vehicle."
+          : focusedInteraction === "car"
+            ? currentLanguage === "fr"
+              ? "Clique ou appuie sur E pour entrer dans la voiture et lancer un tour."
+              : "Click or press E to enter the car and start a run."
+            : currentLanguage === "fr"
+              ? "Approche-toi de la voiture rouge pour prendre le controle du vehicule."
+              : "Get close to the red car to take control of the vehicle.";
+      } else {
+        drivingMode.classList.remove("active");
+      }
+    },
+  };
 }
 
 function lookAtTarget(camera: BABYLON.UniversalCamera, target: BABYLON.Vector3) {
@@ -5812,8 +8326,14 @@ function createPlayerController(
         return;
       }
 
+      if (isDrivingVehicle) {
+        return;
+      }
+
       const movementEnabled =
-        isPointerLocked && projectPanel.classList.contains("hidden");
+        isPointerLocked &&
+        projectPanel.classList.contains("hidden") &&
+        !isDrivingVehicle;
 
       camera.position.copyFrom(state.bodyPosition);
 
@@ -6086,7 +8606,7 @@ function createScene() {
 
   const ground = BABYLON.MeshBuilder.CreateGround(
     "ground",
-    { width: 56, height: 56, subdivisions: 2 },
+    { width: WORLD_SIZE, height: WORLD_SIZE, subdivisions: 4 },
     scene
   );
   ground.material = createMaterial(
@@ -6130,15 +8650,19 @@ function createScene() {
     new BABYLON.Color3(0.25, 0.65, 1)
   );
 
-  createColumn(scene, 23, -23);
-  createColumn(scene, -23, 23);
-  createColumn(scene, 23, 23);
+  createColumn(scene, 92, -92);
+  createColumn(scene, -92, 92);
+  createColumn(scene, 92, 92);
 
   createBounds(scene);
 
   projects.forEach((project) => {
     createProjectRoom(scene, project);
-    if (project.id === "survivorSlime" || project.id === "vrCooking") {
+    if (
+      project.id === "survivorSlime" ||
+      project.id === "vrCooking" ||
+      project.id === "drivingSim"
+    ) {
       createProjectLabel(scene, project);
       return;
     }
@@ -6148,6 +8672,7 @@ function createScene() {
 
   const slimeProject = projects.find((project) => project.id === "survivorSlime");
   const vrCookingProject = projects.find((project) => project.id === "vrCooking");
+  const drivingSimProject = projects.find((project) => project.id === "drivingSim");
   if (slimeProject) {
     applyWetLookToSlimeZone(scene, slimeProject);
   }
@@ -6166,6 +8691,9 @@ function createScene() {
   const vrCookingSystem = vrCookingProject
     ? createVRCookingSystem(scene, vrCookingProject, camera)
     : null;
+  const drivingSimSystem = drivingSimProject
+    ? createDrivingSimSystem(scene, drivingSimProject, camera, playerController)
+    : null;
 
   function setHoveredProject(
     projectId: string | null,
@@ -6178,7 +8706,7 @@ function createScene() {
       if (activeProjectId) {
         const activeProject = projects.find((entry) => entry.id === activeProjectId);
         if (activeProject) {
-          updateStatus(`Focus: ${activeProject.title}`);
+          updateStatus(`${currentLanguage === "fr" ? "Focus" : "Focus"}: ${getProjectText(activeProject).title}`);
         }
       }
       return;
@@ -6187,10 +8715,15 @@ function createScene() {
     if (projectId) {
       const project = projects.find((entry) => entry.id === projectId);
       if (project) {
+        const text = getProjectText(project);
         updateStatus(
           interactionMode === "panel"
-            ? `Vise ${project.title} - appuie sur E pour ouvrir la fiche`
-            : `Vise ${project.title} - appuie sur E pour ouvrir`
+            ? currentLanguage === "fr"
+              ? `Vise ${text.title} - appuie sur E pour ouvrir la fiche`
+              : `Aim at ${text.title} - press E to open the sheet`
+            : currentLanguage === "fr"
+              ? `Vise ${text.title} - appuie sur E pour ouvrir`
+              : `Aim at ${text.title} - press E to open`
         );
       }
       return;
@@ -6199,7 +8732,7 @@ function createScene() {
     if (activeProjectId) {
       const project = projects.find((entry) => entry.id === activeProjectId);
       if (project) {
-        updateStatus(`Focus: ${project.title}`);
+        updateStatus(`${currentLanguage === "fr" ? "Focus" : "Focus"}: ${getProjectText(project).title}`);
       }
       return;
     }
@@ -6234,6 +8767,10 @@ function createScene() {
     }
 
     if (event.button === 0 && isPointerLocked) {
+      if (!hoveredProjectId && drivingSimSystem?.interact(false)) {
+        return;
+      }
+
       if (!hoveredProjectId && vrCookingSystem?.interact()) {
         return;
       }
@@ -6259,12 +8796,20 @@ function createScene() {
       return;
     }
 
+    if (drivingSimSystem?.isDriving() && drivingSimSystem.interact(true)) {
+      return;
+    }
+
     if (hoveredProjectId) {
       if (hoveredInteractionMode === "panel") {
         openProjectInfo(hoveredProjectId);
       } else {
         focusProject(hoveredProjectId, true);
       }
+      return;
+    }
+
+    if (drivingSimSystem?.interact(true)) {
       return;
     }
 
@@ -6296,6 +8841,7 @@ function createScene() {
     playerController.update();
     slimeEnemySystem?.update();
     slimeWeaponSystem?.update();
+    drivingSimSystem?.update();
     const crosshairState = slimeWeaponSystem?.getCrosshairState();
     crosshair.classList.toggle("combat", Boolean(crosshairState?.armed));
     crosshair.classList.toggle("targeting", Boolean(crosshairState?.targeting));
@@ -6305,6 +8851,8 @@ function createScene() {
 
     isInSlimeCombatZone = slimeEnemySystem?.isPlayerInsideArena() ?? false;
     isInVRCookingZone = vrCookingSystem?.isPlayerInsideZone() ?? false;
+    isInDrivingSimZone = drivingSimSystem?.isPlayerInsideZone() ?? false;
+    isDrivingVehicle = drivingSimSystem?.isDriving() ?? false;
     vrCookingSystem?.update();
     const showCombatHud =
       isInSlimeCombatZone && projectPanel.classList.contains("hidden");
@@ -6317,26 +8865,34 @@ function createScene() {
       const enemyCount = slimeEnemySystem.getEnemyCount();
       combatStatus.textContent =
         enemyCount > 0
-          ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - clic gauche pour lancer un eclair`
-          : "Zone securisee pour l'instant - les slimes repopent tant que tu restes dans l'arene";
+          ? currentLanguage === "fr"
+            ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - clic gauche pour lancer un eclair`
+            : `${enemyCount} active slime${enemyCount > 1 ? "s" : ""} - left click to fire lightning`
+          : currentLanguage === "fr"
+            ? "Zone securisee pour l'instant - les slimes repopent tant que tu restes dans l'arene"
+            : "Area secured for now - slimes keep respawning while you stay in the arena";
     }
     if (combatPopup.classList.contains("visible") && performance.now() >= combatPopupHideAt) {
       combatPopup.classList.remove("visible");
     }
 
-    const forwardPick = scene.pickWithRay(
-      camera.getForwardRay(PANEL_INTERACTION_DISTANCE),
-      (mesh) => Boolean((mesh.metadata as ProjectInteractionMetadata | undefined)?.projectId)
-    );
-    const interaction = forwardPick?.hit
-      ? (forwardPick.pickedMesh?.metadata as ProjectInteractionMetadata | undefined)
-      : undefined;
-    const interactionDistance = interaction?.interactionDistance ?? INTERACTION_DISTANCE;
-    const isWithinRange = (forwardPick?.distance ?? Number.POSITIVE_INFINITY) <= interactionDistance;
-    setHoveredProject(
-      isWithinRange ? interaction?.projectId ?? null : null,
-      isWithinRange ? interaction?.interactionMode ?? "focus" : "focus"
-    );
+    if (isDrivingVehicle) {
+      setHoveredProject(null);
+    } else {
+      const forwardPick = scene.pickWithRay(
+        camera.getForwardRay(PANEL_INTERACTION_DISTANCE),
+        (mesh) => Boolean((mesh.metadata as ProjectInteractionMetadata | undefined)?.projectId)
+      );
+      const interaction = forwardPick?.hit
+        ? (forwardPick.pickedMesh?.metadata as ProjectInteractionMetadata | undefined)
+        : undefined;
+      const interactionDistance = interaction?.interactionDistance ?? INTERACTION_DISTANCE;
+      const isWithinRange = (forwardPick?.distance ?? Number.POSITIVE_INFINITY) <= interactionDistance;
+      setHoveredProject(
+        isWithinRange ? interaction?.projectId ?? null : null,
+        isWithinRange ? interaction?.interactionMode ?? "focus" : "focus"
+      );
+    }
 
     pointLight.position.x = Math.sin(time * 0.45) * 1.2;
     pointLight.position.z = Math.cos(time * 0.45) * 1.2;
@@ -6435,6 +8991,7 @@ function createScene() {
 }
 
 const scene = createScene();
+localeRefreshers.forEach((refresher) => refresher());
 
 engine.runRenderLoop(() => {
   scene.render();

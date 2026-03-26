@@ -10,13 +10,16 @@
 
     <div id="ui">
       <header id="topbar">
-        <div class="brand-block">
-          <p class="eyebrow">Gameplay Programmer Portfolio</p>
-          <h1>Cyrian Savary</h1>
-          <p class="intro-copy">
-            Portfolio interactif consacre a la programmation gameplay, aux
-            systemes temps reel et a la mise en scene de projets techniques.
-          </p>
+        <div class="topbar-left">
+          <button id="languageToggle" class="lang-toggle" type="button">FR</button>
+          <div class="brand-block">
+            <p id="brandEyebrow" class="eyebrow">Gameplay Programmer Portfolio</p>
+            <h1>Cyrian Savary</h1>
+            <p id="introCopy" class="intro-copy">
+              Portfolio interactif consacre a la programmation gameplay, aux
+              systemes temps reel et a la mise en scene de projets techniques.
+            </p>
+          </div>
         </div>
 
         <button id="overviewTrigger" class="overview-trigger" type="button">
@@ -32,9 +35,9 @@
       <aside id="projectRail" aria-label="Navigation projets"></aside>
 
       <section id="heroPanel">
-        <p class="eyebrow">Hall central</p>
-        <h2>Visite libre en vue FPS.</h2>
-        <p>
+        <p id="heroEyebrow" class="eyebrow">Hall central</p>
+        <h2 id="heroTitle">Visite libre en vue FPS.</h2>
+        <p id="heroBody">
           Clique dans la scene pour capturer la souris, deplace-toi en ZQSD ou
           WASD, maintiens Shift pour sprinter, Space pour sauter, puis vise un
           stand et appuie sur E pour ouvrir sa fiche.
@@ -42,9 +45,9 @@
       </section>
 
       <section id="combatHud" class="hidden" aria-live="polite">
-        <p class="eyebrow">Survivor Slime</p>
+        <p id="combatEyebrow" class="eyebrow">Survivor Slime</p>
         <div class="combat-head">
-          <strong>Arc Blaster</strong>
+          <strong id="combatTitle">Arc Blaster</strong>
           <span id="combatScore">0000</span>
         </div>
         <p id="combatStatus">
@@ -55,9 +58,9 @@
       </section>
 
       <section id="cookingHud" class="hidden" aria-live="polite">
-        <p class="eyebrow">VR Cooking</p>
+        <p id="cookingEyebrow" class="eyebrow">VR Cooking</p>
         <div class="combat-head">
-          <strong>Service burgers</strong>
+          <strong id="cookingTitle">Service burgers</strong>
           <span id="cookingScore">0000</span>
         </div>
         <div class="cooking-meta">
@@ -71,16 +74,31 @@
         <div id="cookingPopup" class="combat-popup">+120</div>
       </section>
 
+      <section id="drivingHud" class="hidden" aria-live="polite">
+        <p id="drivingEyebrow" class="eyebrow">DrivingSim</p>
+        <div class="combat-head">
+          <strong id="drivingTitle">Urban Test Loop</strong>
+          <span id="drivingSpeed">000 km/h</span>
+        </div>
+        <div class="cooking-meta">
+          <span id="drivingMode" class="cooking-pill">A pied</span>
+        </div>
+        <p id="drivingHint">
+          Approche-toi de la voiture et clique ou appuie sur E pour prendre le
+          volant.
+        </p>
+      </section>
+
       <section id="projectPanel" class="panel hidden" aria-live="polite">
         <div class="panel-video">
           <div class="panel-video-copy">
-            <p class="eyebrow">Presentation video</p>
+            <p id="projectVideoEyebrow" class="eyebrow">Presentation video</p>
             <strong id="projectVideoTitle">Gameplay capture</strong>
             <span id="projectVideoNote">Emplacement reserve pour une video de presentation.</span>
           </div>
           <div class="panel-video-frame" aria-hidden="true">
             <div class="panel-video-play"></div>
-            <span>Trailer / gameplay capture</span>
+            <span id="projectVideoFrameLabel">Trailer / gameplay capture</span>
           </div>
         </div>
 
@@ -91,12 +109,12 @@
           <p id="projectDescription"></p>
 
           <div class="meta-grid">
-            <p><strong>Moteur</strong><span id="projectEngine"></span></p>
-            <p><strong>Focus</strong><span id="projectFocus"></span></p>
-            <p><strong>Contexte</strong><span id="projectContext"></span></p>
-            <p><strong>Role</strong><span id="projectRole"></span></p>
-            <p><strong>Periode</strong><span id="projectYear"></span></p>
-            <p><strong>Stack</strong><span id="projectStack"></span></p>
+            <p><strong id="metaEngineLabel">Moteur</strong><span id="projectEngine"></span></p>
+            <p><strong id="metaFocusLabel">Focus</strong><span id="projectFocus"></span></p>
+            <p><strong id="metaContextLabel">Contexte</strong><span id="projectContext"></span></p>
+            <p><strong id="metaRoleLabel">Role</strong><span id="projectRole"></span></p>
+            <p><strong id="metaYearLabel">Periode</strong><span id="projectYear"></span></p>
+            <p><strong id="metaStackLabel">Stack</strong><span id="projectStack"></span></p>
           </div>
 
           <blockquote id="projectAtmosphere"></blockquote>
@@ -107,9 +125,9 @@
         <div class="overview-shell">
           <div class="overview-header">
             <div>
-              <p class="eyebrow">Fast Track</p>
-              <h2>Tous les projets en un coup d'oeil</h2>
-              <p>
+              <p id="overviewEyebrow" class="eyebrow">Fast Track</p>
+              <h2 id="overviewTitle">Tous les projets en un coup d'oeil</h2>
+              <p id="overviewBody">
                 Une lecture rapide du portfolio si tu n'as pas le temps de faire
                 la visite interactive.
               </p>
@@ -124,9 +142,9 @@
       <div id="crosshair" aria-hidden="true"></div>
 
       <footer id="hintBar">
-        <span>Clic scene pour capturer la souris</span>
-        <span>ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter</span>
-        <span>E pour ouvrir, Echap pour liberer</span>
+        <span id="hintCapture">Clic scene pour capturer la souris</span>
+        <span id="hintMove">ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter</span>
+        <span id="hintOpen">E pour ouvrir, Echap pour liberer</span>
       </footer>
     </div>
 
