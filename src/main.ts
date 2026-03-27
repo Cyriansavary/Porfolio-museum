@@ -771,8 +771,8 @@ function syncCrosshairVisibility() {
 function getFreeRoamStatusMessage() {
   if (isPointerLocked && isDrivingVehicle) {
     return currentLanguage === "fr"
-      ? "Zone DrivingSim - passe dans les checkpoints avant la fin du chrono, Space freine, E pour sortir du vehicule"
-      : "DrivingSim zone - drive through the checkpoints before the timer runs out, Space brakes, E exits the vehicle";
+      ? "Zone DrivingSim - enchaine les checkpoints avant la fin du chrono, Space freine, E pour sortir du vehicule"
+      : "DrivingSim zone - chain the checkpoints before the timer runs out, Space brakes, E exits the vehicle";
   }
 
   if (isPointerLocked && isInSlimeCombatZone) {
@@ -789,8 +789,8 @@ function getFreeRoamStatusMessage() {
 
   if (isPointerLocked && isInDrivingSimZone) {
     return currentLanguage === "fr"
-      ? "Zone DrivingSim - approche-toi de la voiture et clique ou appuie sur E pour lancer la course"
-      : "DrivingSim zone - get close to the car and click or press E to launch the race";
+      ? "Zone DrivingSim - approche-toi de la voiture et clique ou appuie sur E pour lancer la boucle"
+      : "DrivingSim zone - get close to the car and click or press E to launch the loop";
   }
 
   return isPointerLocked
@@ -2131,8 +2131,8 @@ function createDrivingBuilding(
   shell.material = createMaterial(
     scene,
     `${name}_shellMat`,
-    new BABYLON.Color3(0.14, 0.16, 0.18),
-    accentColor.scale(0.04)
+    new BABYLON.Color3(0.54, 0.52, 0.48),
+    accentColor.scale(0.025)
   );
 
   const plinth = BABYLON.MeshBuilder.CreateBox(
@@ -2146,8 +2146,8 @@ function createDrivingBuilding(
   plinth.material = createMaterial(
     scene,
     `${name}_plinthMat`,
-    new BABYLON.Color3(0.08, 0.09, 0.11),
-    new BABYLON.Color3(0.01, 0.01, 0.012)
+    new BABYLON.Color3(0.3, 0.27, 0.24),
+    new BABYLON.Color3(0.02, 0.018, 0.015)
   );
 
   const roof = BABYLON.MeshBuilder.CreateBox(
@@ -2161,16 +2161,16 @@ function createDrivingBuilding(
   roof.material = createMaterial(
     scene,
     `${name}_roofMat`,
-    new BABYLON.Color3(0.09, 0.1, 0.12),
+    new BABYLON.Color3(0.26, 0.2, 0.18),
     accentColor.scale(0.06)
   );
 
   const windowMaterial = createMaterial(
     scene,
     `${name}_windowMat`,
-    new BABYLON.Color3(0.18, 0.24, 0.28),
+    new BABYLON.Color3(0.2, 0.24, 0.28),
     accentColor.scale(0.22),
-    0.92
+    0.86
   );
   windowMaterial.disableLighting = true;
 
@@ -2195,7 +2195,31 @@ function createDrivingBuilding(
   sideWindows.isPickable = false;
   sideWindows.material = windowMaterial;
 
-  enableCollisions(shell, plinth, roof);
+  const awningDepth = Math.min(0.72, depth * 0.3);
+  const awning = BABYLON.MeshBuilder.CreateBox(
+    `${name}_awning`,
+    {
+      width: Math.max(1.6, width - 0.55),
+      height: 0.1,
+      depth: awningDepth,
+    },
+    scene
+  );
+  awning.parent = root;
+  awning.position = new BABYLON.Vector3(
+    0,
+    Math.min(2.25, height * 0.42),
+    -depth * 0.5 - awningDepth * 0.24
+  );
+  awning.isPickable = false;
+  awning.material = createMaterial(
+    scene,
+    `${name}_awningMat`,
+    new BABYLON.Color3(0.46, 0.32, 0.24),
+    accentColor.scale(0.08)
+  );
+
+  enableCollisions(shell, plinth, roof, awning);
   return root;
 }
 
@@ -2306,14 +2330,32 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   const sidewalkMaterial = createMaterial(
     scene,
     `${project.id}_sidewalkMat`,
-    new BABYLON.Color3(0.34, 0.35, 0.37),
-    new BABYLON.Color3(0.02, 0.02, 0.024)
+    new BABYLON.Color3(0.46, 0.44, 0.4),
+    new BABYLON.Color3(0.028, 0.026, 0.02)
   );
   const asphaltMaterial = createMaterial(
     scene,
     `${project.id}_asphaltMat`,
     new BABYLON.Color3(0.075, 0.08, 0.095),
     new BABYLON.Color3(0.008, 0.01, 0.014)
+  );
+  const plazaMaterial = createMaterial(
+    scene,
+    `${project.id}_plazaMat`,
+    new BABYLON.Color3(0.62, 0.58, 0.5),
+    new BABYLON.Color3(0.04, 0.03, 0.025)
+  );
+  const foliageMaterial = createMaterial(
+    scene,
+    `${project.id}_foliageMat`,
+    new BABYLON.Color3(0.22, 0.34, 0.24),
+    new BABYLON.Color3(0.02, 0.04, 0.02)
+  );
+  const trunkMaterial = createMaterial(
+    scene,
+    `${project.id}_trunkMat`,
+    new BABYLON.Color3(0.26, 0.19, 0.14),
+    new BABYLON.Color3(0.01, 0.008, 0.006)
   );
 
   const wallSegments = [
@@ -2389,6 +2431,76 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     pad.checkCollisions = true;
     return pad;
   };
+  const createRoundedPad = (
+    name: string,
+    x: number,
+    z: number,
+    width: number,
+    depth: number,
+    height = 0.16,
+    material = sidewalkMaterial,
+    rotationY = yaw
+  ) => {
+    const pad = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_${name}`,
+      { diameter: 1, height, tessellation: 36 },
+      scene
+    );
+    pad.position = toWorld(x, height * 0.5 + 0.03, z);
+    pad.rotation.y = rotationY;
+    pad.scaling = new BABYLON.Vector3(width, 1, depth);
+    pad.isPickable = false;
+    pad.material = material;
+    pad.checkCollisions = true;
+    return pad;
+  };
+  const addArcDashes = (
+    prefix: string,
+    centerX: number,
+    centerZ: number,
+    radius: number,
+    startAngle: number,
+    endAngle: number,
+    count: number
+  ) => {
+    for (let index = 0; index < count; index += 1) {
+      const t = count === 1 ? 0 : index / (count - 1);
+      const angle = BABYLON.Scalar.Lerp(startAngle, endAngle, t);
+      const localX = centerX + Math.cos(angle) * radius;
+      const localZ = centerZ + Math.sin(angle) * radius;
+      const tangent = new BABYLON.Vector2(-Math.sin(angle), Math.cos(angle));
+      createDrivingRoadStripe(
+        scene,
+        `${project.id}_${prefix}_${index}`,
+        toWorld(localX, 0.118, localZ),
+        yaw + Math.atan2(tangent.x, tangent.y),
+        0.18,
+        1.02,
+        dashColor,
+        0.92
+      );
+    }
+  };
+  const createStreetTree = (name: string, x: number, z: number, scale = 1) => {
+    const trunk = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_${name}_trunk`,
+      { diameter: 0.18 * scale, height: 1.2 * scale, tessellation: 10 },
+      scene
+    );
+    trunk.position = toWorld(x, 0.6 * scale + 0.03, z);
+    trunk.isPickable = false;
+    trunk.material = trunkMaterial;
+
+    const crown = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_${name}_crown`,
+      { diameter: 1.05 * scale, segments: 12 },
+      scene
+    );
+    crown.position = toWorld(x, 1.45 * scale + 0.03, z);
+    crown.scaling.y = 0.82;
+    crown.isPickable = false;
+    crown.material = foliageMaterial;
+  };
 
   roadRects.forEach((rect) => {
     const road = BABYLON.MeshBuilder.CreateBox(
@@ -2448,6 +2560,112 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   cityBlocks.forEach((block) =>
     createPad(block.name, block.x, block.z, block.width, block.depth, 0.18)
   );
+
+  for (const corner of [
+    { name: "cornerSouthWestA", x: -8.7, z: -11.4, w: 2.6, d: 2.1 },
+    { name: "cornerSouthEastA", x: 8.7, z: -11.4, w: 2.6, d: 2.1 },
+    { name: "cornerMarketWestA", x: -8.7, z: 9.2, w: 2.8, d: 2.2 },
+    { name: "cornerMarketEastA", x: 8.7, z: 9.2, w: 2.8, d: 2.2 },
+    { name: "cornerNorthWestA", x: -16.8, z: 18.8, w: 2.4, d: 2.1 },
+    { name: "cornerNorthEastA", x: 16.8, z: 18.8, w: 2.4, d: 2.1 },
+    { name: "cornerWestSouthA", x: -16.8, z: -11.4, w: 2.4, d: 2.1 },
+    { name: "cornerEastSouthA", x: 16.8, z: -11.4, w: 2.4, d: 2.1 },
+  ]) {
+    createRoundedPad(corner.name, corner.x, corner.z, corner.w, corner.d);
+  }
+
+  createRoundedPad("piazzaWest", -9.2, 11.2, 4.4, 3.2, 0.14, plazaMaterial, yaw - 0.14);
+  createRoundedPad("piazzaEast", 9.6, 11.0, 4.8, 3.4, 0.14, plazaMaterial, yaw + 0.1);
+  createRoundedPad("piazzaRear", -3.2, 31.2, 4.6, 3.4, 0.14, plazaMaterial, yaw - 0.08);
+
+  const fountainBase = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_fountainBase`,
+    { diameter: 2.4, height: 0.26, tessellation: 32 },
+    scene
+  );
+  fountainBase.position = toWorld(-3.2, 0.2, 31.2);
+  fountainBase.scaling.z = 0.88;
+  fountainBase.isPickable = false;
+  fountainBase.material = plazaMaterial;
+  fountainBase.checkCollisions = true;
+
+  const fountainColumn = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_fountainColumn`,
+    { diameter: 0.42, height: 1.1, tessellation: 20 },
+    scene
+  );
+  fountainColumn.position = toWorld(-3.2, 0.74, 31.2);
+  fountainColumn.isPickable = false;
+  fountainColumn.material = wallMaterial;
+
+  const fountainTop = BABYLON.MeshBuilder.CreateSphere(
+    `${project.id}_fountainTop`,
+    { diameter: 0.38, segments: 10 },
+    scene
+  );
+  fountainTop.position = toWorld(-3.2, 1.36, 31.2);
+  fountainTop.isPickable = false;
+  fountainTop.material = createMaterial(
+    scene,
+    `${project.id}_fountainTopMat`,
+    new BABYLON.Color3(0.86, 0.88, 0.92),
+    project.color.scale(0.12)
+  );
+
+  createStreetTree("treeWestPiazzaA", -8.6, 10.2, 0.95);
+  createStreetTree("treeWestPiazzaB", -10.1, 12.2, 0.8);
+  createStreetTree("treeEastPiazzaA", 8.8, 10.1, 0.92);
+  createStreetTree("treeEastPiazzaB", 10.6, 12.3, 0.8);
+  createStreetTree("treeRearPiazza", -5.1, 31.1, 0.95);
+
+  const cafeMetalMaterial = createMaterial(
+    scene,
+    `${project.id}_cafeMetalMat`,
+    new BABYLON.Color3(0.18, 0.18, 0.2),
+    new BABYLON.Color3(0.012, 0.012, 0.014)
+  );
+  const cafeTopMaterial = createMaterial(
+    scene,
+    `${project.id}_cafeTopMat`,
+    new BABYLON.Color3(0.58, 0.42, 0.3),
+    new BABYLON.Color3(0.03, 0.022, 0.016)
+  );
+  for (const table of [
+    { name: "cafeWest", x: -8.0, z: 12.0 },
+    { name: "cafeEast", x: 8.1, z: 12.1 },
+  ]) {
+    const top = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_${table.name}_top`,
+      { diameter: 0.9, height: 0.08, tessellation: 20 },
+      scene
+    );
+    top.position = toWorld(table.x, 0.73, table.z);
+    top.isPickable = false;
+    top.material = cafeTopMaterial;
+
+    const leg = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_${table.name}_leg`,
+      { diameter: 0.12, height: 0.66, tessellation: 12 },
+      scene
+    );
+    leg.position = toWorld(table.x, 0.37, table.z);
+    leg.isPickable = false;
+    leg.material = cafeMetalMaterial;
+
+    for (const seat of [
+      { x: table.x - 0.62, z: table.z + 0.1 },
+      { x: table.x + 0.52, z: table.z - 0.12 },
+    ]) {
+      const stool = BABYLON.MeshBuilder.CreateCylinder(
+        `${project.id}_${table.name}_stool_${seat.x}_${seat.z}`,
+        { diameter: 0.34, height: 0.42, tessellation: 14 },
+        scene
+      );
+      stool.position = toWorld(seat.x, 0.24, seat.z);
+      stool.isPickable = false;
+      stool.material = cafeTopMaterial;
+    }
+  }
 
   const dashColor = new BABYLON.Color3(0.94, 0.92, 0.76);
   const crosswalkColor = new BABYLON.Color3(0.95, 0.95, 0.93);
@@ -2509,6 +2727,10 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   addHorizontalDashes("northStreetDashes", 21.2, -31.2, 31.2, 3.2, 1.2);
   addHorizontalDashes("westConnectorDashes", 11.8, -16.4, -6.8, 3, 1.02);
   addHorizontalDashes("eastConnectorDashes", 11.8, 6.8, 16.4, 3, 1.02);
+  addArcDashes("southEastArc", 23.8, -17.8, 5.6, Math.PI, Math.PI * 0.5, 5);
+  addArcDashes("northEastArc", 23.8, 21.2, 5.6, -Math.PI * 0.5, -Math.PI, 5);
+  addArcDashes("northWestArc", -23.8, 21.2, 5.6, 0, -Math.PI * 0.5, 5);
+  addArcDashes("southWestArc", -23.8, -17.8, 5.6, Math.PI * 0.5, 0, 5);
 
   createDrivingRoadStripe(
     scene,
@@ -2555,19 +2777,19 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   }
 
   const buildingData = [
-    { name: "southWestRetail", x: -12.0, z: -8.1, width: 10.2, depth: 3.4, height: 4.0, rotation: yaw },
-    { name: "southEastRetail", x: 12.0, z: -8.1, width: 10.2, depth: 3.4, height: 4.2, rotation: yaw },
-    { name: "marketWestOffice", x: -12.0, z: 11.2, width: 10.0, depth: 5.0, height: 5.3, rotation: yaw },
-    { name: "marketEastOffice", x: 12.0, z: 11.2, width: 10.0, depth: 5.0, height: 5.5, rotation: yaw },
-    { name: "westSouthCorner", x: -32.0, z: -8.0, width: 5.4, depth: 2.2, height: 5.0, rotation: yaw + Math.PI / 2 },
-    { name: "westMidCorner", x: -32.0, z: 11.2, width: 5.4, depth: 2.2, height: 5.9, rotation: yaw + Math.PI / 2 },
-    { name: "westRearTower", x: -32.0, z: 31.4, width: 6.0, depth: 2.2, height: 7.3, rotation: yaw + Math.PI / 2 },
-    { name: "eastSouthCorner", x: 32.0, z: -8.0, width: 5.4, depth: 2.2, height: 4.8, rotation: yaw - Math.PI / 2 },
-    { name: "eastMidCorner", x: 32.0, z: 11.2, width: 5.4, depth: 2.2, height: 5.6, rotation: yaw - Math.PI / 2 },
-    { name: "eastRearTower", x: 32.0, z: 31.4, width: 6.0, depth: 2.2, height: 7.4, rotation: yaw - Math.PI / 2 },
-    { name: "rearWestBlock", x: -12.0, z: 31.4, width: 10.2, depth: 4.4, height: 5.7, rotation: yaw + Math.PI },
-    { name: "rearCenterStation", x: 0, z: 31.4, width: 10.8, depth: 4.4, height: 4.8, rotation: yaw + Math.PI },
-    { name: "rearEastBlock", x: 12.0, z: 31.4, width: 10.2, depth: 4.4, height: 5.9, rotation: yaw + Math.PI },
+    { name: "southWestRetail", x: -13.6, z: -8.3, width: 8.6, depth: 3.3, height: 4.2, rotation: yaw - 0.08 },
+    { name: "southEastRetail", x: 13.3, z: -8.0, width: 8.2, depth: 3.5, height: 4.5, rotation: yaw + 0.1 },
+    { name: "marketWestOffice", x: -14.0, z: 11.1, width: 8.4, depth: 4.6, height: 5.7, rotation: yaw - 0.06 },
+    { name: "marketEastOffice", x: 14.1, z: 11.0, width: 8.8, depth: 4.8, height: 5.2, rotation: yaw + 0.08 },
+    { name: "westSouthCorner", x: -31.6, z: -8.2, width: 5.2, depth: 2.4, height: 4.9, rotation: yaw + Math.PI / 2 - 0.08 },
+    { name: "westMidCorner", x: -31.5, z: 11.0, width: 5.2, depth: 2.4, height: 5.8, rotation: yaw + Math.PI / 2 + 0.04 },
+    { name: "westRearTower", x: -31.2, z: 31.2, width: 5.6, depth: 2.4, height: 7.5, rotation: yaw + Math.PI / 2 - 0.04 },
+    { name: "eastSouthCorner", x: 31.6, z: -8.0, width: 5.0, depth: 2.4, height: 4.7, rotation: yaw - Math.PI / 2 + 0.06 },
+    { name: "eastMidCorner", x: 31.5, z: 11.1, width: 5.2, depth: 2.4, height: 5.5, rotation: yaw - Math.PI / 2 - 0.04 },
+    { name: "eastRearTower", x: 31.4, z: 31.0, width: 5.8, depth: 2.4, height: 7.3, rotation: yaw - Math.PI / 2 + 0.08 },
+    { name: "rearWestBlock", x: -13.7, z: 31.1, width: 8.8, depth: 4.1, height: 5.9, rotation: yaw + Math.PI - 0.07 },
+    { name: "rearCenterStation", x: 3.2, z: 31.2, width: 6.2, depth: 4.0, height: 4.8, rotation: yaw + Math.PI + 0.06 },
+    { name: "rearEastBlock", x: 14.0, z: 31.2, width: 8.4, depth: 4.2, height: 6.1, rotation: yaw + Math.PI + 0.04 },
   ];
 
   buildingData.forEach((building) => {

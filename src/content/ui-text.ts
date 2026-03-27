@@ -27,8 +27,8 @@ export const uiText = {
     drivingModeOnFoot: "A pied",
     drivingHintDefault:
       "Approche-toi de la voiture et clique ou appuie sur E pour prendre le volant.",
-    drivingRaceIdle: "Course en attente",
-    drivingRaceScore: "Score course",
+    drivingRaceIdle: "Boucle en attente",
+    drivingRaceScore: "Score circuit",
     projectVideoEyebrow: "Presentation video",
     projectVideoFrameLabel: "Trailer / gameplay capture",
     metaEngine: "Moteur",
@@ -97,8 +97,8 @@ export const uiText = {
     drivingModeOnFoot: "On foot",
     drivingHintDefault:
       "Get close to the car and click or press E to take the wheel.",
-    drivingRaceIdle: "Race idle",
-    drivingRaceScore: "Run score",
+    drivingRaceIdle: "Loop idle",
+    drivingRaceScore: "Loop score",
     projectVideoEyebrow: "Video presentation",
     projectVideoFrameLabel: "Trailer / gameplay capture",
     metaEngine: "Engine",

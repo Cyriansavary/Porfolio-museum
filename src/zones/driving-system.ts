@@ -11,9 +11,7 @@ import {
   DRIVING_MAX_FORWARD_SPEED,
   DRIVING_RACE_CHECKPOINT_RADIUS,
   DRIVING_RACE_CHECKPOINT_SCORE,
-  DRIVING_RACE_FINISH_BONUS,
   DRIVING_RACE_MIN_SEGMENT_TIME,
-  DRIVING_RACE_RESTART_DELAY,
   DRIVING_RACE_SEGMENT_TIME,
   DRIVING_MAX_REVERSE_SPEED,
   DRIVING_REVERSE_ACCELERATION,
@@ -97,17 +95,21 @@ type DrivingRaceCheckpoint = {
   z: number;
 };
 
-type DrivingRaceState = "idle" | "running" | "failed" | "complete" | "locked";
+type DrivingRaceState = "idle" | "running" | "locked";
 
 const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
   { x: 0, z: -25.4 },
-  { x: 0, z: -14.6 },
-  { x: 23.8, z: -17.8 },
-  { x: 23.8, z: 21.2 },
-  { x: -23.8, z: 21.2 },
-  { x: -23.8, z: 2.2 },
-  { x: 0, z: 2.2 },
-  { x: 0, z: -31.2 },
+  { x: 0, z: -14.8 },
+  { x: 14.8, z: -17.8 },
+  { x: 23.8, z: -4.8 },
+  { x: 23.8, z: 11.8 },
+  { x: 14.8, z: 21.2 },
+  { x: 0, z: 21.2 },
+  { x: -14.8, z: 21.2 },
+  { x: -23.8, z: 11.8 },
+  { x: -23.8, z: -4.8 },
+  { x: -14.8, z: -17.8 },
+  { x: 0, z: -17.8 },
 ];
 
 function isInsideDrivingRoad(
@@ -453,8 +455,8 @@ export function createDrivingSimSystem(
       languageState.currentLanguage === "fr" ? "CIRCUIT FERME" : "TRACK CLOSED",
     () =>
       languageState.currentLanguage === "fr"
-        ? "3 runs rates - acces bloque"
-        : "3 failed runs - area locked"
+        ? "3 checkpoints rates - acces bloque"
+        : "3 missed checkpoints - area locked"
   );
   const checkpointRoot = new BABYLON.TransformNode(
     `${project.id}_raceCheckpointRoot`,
@@ -529,11 +531,10 @@ export function createDrivingSimSystem(
   let raceState: DrivingRaceState = "idle";
   let activeCheckpointIndex = 0;
   let checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
-  let runScore = 0;
-  let restartRemaining = 0;
+  let sessionScore = 0;
   let totalCheckpointClears = 0;
   let difficultyTier = 1;
-  let failedRuns = 0;
+  let missedCheckpoints = 0;
   let locked = false;
   let drivingPopupHideAt = 0;
 
@@ -552,44 +553,32 @@ export function createDrivingSimSystem(
     const isFrench = languageState.currentLanguage === "fr";
     return {
       vehicleReady: isFrench ? "Vehicule pret" : "Vehicle ready",
-      raceLive: isFrench ? "Course active" : "Race live",
-      raceFailed: isFrench ? "Course perdue" : "Run failed",
-      raceComplete: isFrench ? "Tour valide" : "Lap complete",
+      raceLive: isFrench ? "Boucle active" : "Loop live",
       raceLocked: isFrench ? "Circuit ferme" : "Track closed",
       checkpointLabel: (index: number, total: number) =>
         isFrench ? `Checkpoint ${index}/${total}` : `Checkpoint ${index}/${total}`,
-      nextHint: isFrench ? "8 checkpoints" : "8 checkpoints",
+      nextHint: isFrench ? "12 checkpoints en boucle" : "12 looping checkpoints",
       readyHint: isFrench
-        ? "Clique ou appuie sur E pour entrer dans la voiture et lancer la course."
-        : "Click or press E to enter the car and launch the race.",
+        ? "Clique ou appuie sur E pour entrer dans la voiture et lancer la boucle."
+        : "Click or press E to enter the car and launch the loop.",
       idleHint: isFrench
-        ? "Approche-toi de la voiture rouge pour lancer une course chronometree."
-        : "Get close to the red car to launch the timed race.",
+        ? "Approche-toi de la voiture rouge pour lancer le circuit chronometre."
+        : "Get close to the red car to launch the timed circuit.",
       runningHint: isFrench
-        ? "Traverse les cercles avant la fin du chrono. Space freine, E pour sortir du vehicule."
-        : "Drive through the circles before the timer runs out. Space brakes, E exits the vehicle.",
-      failedHint: (seconds: number) =>
-        isFrench
-          ? `Temps depasse. Nouveau run dans ${seconds.toFixed(1)} s.`
-          : `Time up. New run in ${seconds.toFixed(1)} s.`,
-      completeHint: (seconds: number) =>
-        isFrench
-          ? `Tour valide. Nouveau run dans ${seconds.toFixed(1)} s.`
-          : `Lap complete. New run in ${seconds.toFixed(1)} s.`,
+        ? "Enchaine les cercles avant la fin du chrono. 3 echecs ferment le circuit. Space freine, E pour sortir du vehicule."
+        : "Chain the circles before the timer runs out. 3 misses close the track. Space brakes, E exits the vehicle.",
       checkpointPopup: (index: number, total: number) =>
         isFrench
           ? `Checkpoint ${index}/${total} +${DRIVING_RACE_CHECKPOINT_SCORE}`
           : `Checkpoint ${index}/${total} +${DRIVING_RACE_CHECKPOINT_SCORE}`,
-      finishPopup: isFrench
-        ? `Tour valide +${DRIVING_RACE_FINISH_BONUS}`
-        : `Lap complete +${DRIVING_RACE_FINISH_BONUS}`,
+      loopPopup: isFrench ? "Boucle completee" : "Loop completed",
       failPopup: (failedCount: number) =>
         isFrench
-          ? `Temps depasse ${failedCount}/${DRIVING_FAILURE_LIMIT}`
-          : `Time up ${failedCount}/${DRIVING_FAILURE_LIMIT}`,
+          ? `Checkpoint manque ${failedCount}/${DRIVING_FAILURE_LIMIT}`
+          : `Checkpoint missed ${failedCount}/${DRIVING_FAILURE_LIMIT}`,
       lockHint: isFrench
-        ? "Zone verrouillee apres 3 runs rates."
-        : "Area locked after 3 failed runs.",
+        ? "Zone verrouillee apres 3 checkpoints manques."
+        : "Area locked after 3 missed checkpoints.",
     };
   }
 
@@ -618,8 +607,10 @@ export function createDrivingSimSystem(
     raceState = locked ? "locked" : "idle";
     activeCheckpointIndex = 0;
     checkpointRemaining = getCurrentSegmentTimeLimit();
-    restartRemaining = 0;
-    runScore = 0;
+    sessionScore = 0;
+    totalCheckpointClears = 0;
+    difficultyTier = 1;
+    missedCheckpoints = 0;
     checkpointRoot.setEnabled(false);
     hideDrivingPopup();
   }
@@ -633,8 +624,10 @@ export function createDrivingSimSystem(
     raceState = "running";
     activeCheckpointIndex = 0;
     checkpointRemaining = getCurrentSegmentTimeLimit();
-    restartRemaining = 0;
-    runScore = 0;
+    sessionScore = 0;
+    totalCheckpointClears = 0;
+    difficultyTier = 1;
+    missedCheckpoints = 0;
     positionCheckpoint(activeCheckpointIndex);
     checkpointRoot.setEnabled(true);
     hideDrivingPopup();
@@ -647,15 +640,14 @@ export function createDrivingSimSystem(
 
     locked = true;
     raceState = "locked";
-    restartRemaining = 0;
     checkpointRoot.setEnabled(false);
     entranceBarrier.setEnabled(true);
     hideDrivingPopup();
     showDrivingPopup(getDrivingStrings().raceLocked, "error");
     updateStatus(
       languageState.currentLanguage === "fr"
-        ? "DrivingSim verrouille : 3 runs ont ete rates."
-        : "DrivingSim locked: 3 runs were failed."
+        ? "DrivingSim verrouille : 3 checkpoints ont ete manques."
+        : "DrivingSim locked: 3 checkpoints were missed."
     );
 
     if (driving) {
@@ -679,45 +671,34 @@ export function createDrivingSimSystem(
     }
   }
 
-  function scheduleRaceRestart(nextState: Extract<DrivingRaceState, "failed" | "complete">) {
-    raceState = nextState;
-    restartRemaining = DRIVING_RACE_RESTART_DELAY;
-    checkpointRoot.setEnabled(false);
-  }
-
   function advanceCheckpoint() {
     const strings = getDrivingStrings();
-    runScore += DRIVING_RACE_CHECKPOINT_SCORE;
+    sessionScore += DRIVING_RACE_CHECKPOINT_SCORE;
     totalCheckpointClears += 1;
     difficultyTier = getComputedDifficultyTier();
     awardLeaderboardPoints("driving", DRIVING_RACE_CHECKPOINT_SCORE);
 
     const reachedIndex = activeCheckpointIndex + 1;
-    if (activeCheckpointIndex >= DRIVING_RACE_CHECKPOINTS.length - 1) {
-      runScore += DRIVING_RACE_FINISH_BONUS;
-      awardLeaderboardPoints("driving", DRIVING_RACE_FINISH_BONUS);
-      showDrivingPopup(strings.finishPopup, "success");
-      scheduleRaceRestart("complete");
-      return;
-    }
-
-    activeCheckpointIndex += 1;
+    const completedLoop = activeCheckpointIndex >= DRIVING_RACE_CHECKPOINTS.length - 1;
+    activeCheckpointIndex = (activeCheckpointIndex + 1) % DRIVING_RACE_CHECKPOINTS.length;
     checkpointRemaining = getCurrentSegmentTimeLimit();
     positionCheckpoint(activeCheckpointIndex);
     showDrivingPopup(
-      strings.checkpointPopup(reachedIndex, DRIVING_RACE_CHECKPOINTS.length),
+      completedLoop
+        ? `${strings.loopPopup} +${DRIVING_RACE_CHECKPOINT_SCORE}`
+        : strings.checkpointPopup(reachedIndex, DRIVING_RACE_CHECKPOINTS.length),
       "success"
     );
   }
 
   function failRace() {
-    failedRuns = Math.min(DRIVING_FAILURE_LIMIT, failedRuns + 1);
-    showDrivingPopup(getDrivingStrings().failPopup(failedRuns), "error");
-    if (failedRuns >= DRIVING_FAILURE_LIMIT) {
+    missedCheckpoints = Math.min(DRIVING_FAILURE_LIMIT, missedCheckpoints + 1);
+    showDrivingPopup(getDrivingStrings().failPopup(missedCheckpoints), "error");
+    if (missedCheckpoints >= DRIVING_FAILURE_LIMIT) {
       lockTrack();
       return;
     }
-    scheduleRaceRestart("failed");
+    checkpointRemaining = getCurrentSegmentTimeLimit();
   }
 
   function isInsideZonePoint(position: BABYLON.Vector3) {
@@ -955,16 +936,6 @@ export function createDrivingSimSystem(
           } else if (checkpointRemaining <= 0) {
             failRace();
           }
-        } else if (
-          (raceState === "failed" || raceState === "complete") &&
-          restartRemaining > 0
-        ) {
-          if (canControl) {
-            restartRemaining = Math.max(0, restartRemaining - dt);
-          }
-          if (restartRemaining <= 0) {
-            startRace();
-          }
         }
 
         car.chassis.rotation.z = BABYLON.Scalar.Lerp(
@@ -1081,36 +1052,30 @@ export function createDrivingSimSystem(
             ? 0
             : raceState === "running"
             ? checkpointRemaining
-            : restartRemaining > 0
-              ? restartRemaining
-              : getCurrentSegmentTimeLimit();
+            : getCurrentSegmentTimeLimit();
         drivingSpeed.textContent = `${Math.round(Math.abs(speed) * 3.6)
           .toString()
           .padStart(3, "0")} km/h`;
         drivingMode.textContent = locked
           ? strings.raceLocked
           : driving
-          ? raceState === "running"
-            ? strings.raceLive
-            : raceState === "failed"
-              ? strings.raceFailed
-              : strings.raceComplete
+          ? strings.raceLive
           : focusedInteraction === "car"
             ? strings.vehicleReady
             : getCurrentUiText().drivingModeOnFoot;
         drivingCheckpoint.textContent = locked
           ? languageState.currentLanguage === "fr"
-            ? `Echecs ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
-            : `Fails ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
+            ? `Echecs ${missedCheckpoints}/${DRIVING_FAILURE_LIMIT}`
+            : `Fails ${missedCheckpoints}/${DRIVING_FAILURE_LIMIT}`
           : driving
-          ? raceState === "running"
-            ? strings.checkpointLabel(
-                activeCheckpointIndex + 1,
-                DRIVING_RACE_CHECKPOINTS.length
-              )
-            : languageState.currentLanguage === "fr"
-              ? `Echecs ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
-              : `Fails ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
+          ? `${strings.checkpointLabel(
+              activeCheckpointIndex + 1,
+              DRIVING_RACE_CHECKPOINTS.length
+            )} | ${
+              languageState.currentLanguage === "fr"
+                ? `${DRIVING_FAILURE_LIMIT - missedCheckpoints} vies`
+                : `${DRIVING_FAILURE_LIMIT - missedCheckpoints} lives`
+            }`
           : focusedInteraction === "car"
             ? `${strings.nextHint} | ${
                 languageState.currentLanguage === "fr"
@@ -1120,10 +1085,14 @@ export function createDrivingSimSystem(
             : getCurrentUiText().drivingRaceIdle;
         drivingTimer.textContent =
           locked || timerValue <= 0 ? "--.- s" : `${timerValue.toFixed(1)} s`;
-        drivingRace.textContent = `${getCurrentUiText().drivingRaceScore}: ${runScore
+        drivingRace.textContent = `${getCurrentUiText().drivingRaceScore}: ${sessionScore
           .toString()
           .padStart(4, "0")} | ${
           languageState.currentLanguage === "fr" ? `niv ${difficultyTier}` : `lv ${difficultyTier}`
+        } | ${
+          languageState.currentLanguage === "fr"
+            ? `${missedCheckpoints}/${DRIVING_FAILURE_LIMIT} echecs`
+            : `${missedCheckpoints}/${DRIVING_FAILURE_LIMIT} misses`
         }`;
         drivingMode.classList.toggle("active", driving && !locked);
         drivingCheckpoint.classList.toggle(
@@ -1148,11 +1117,7 @@ export function createDrivingSimSystem(
         drivingHint.textContent = locked
           ? strings.lockHint
           : driving
-          ? raceState === "running"
-            ? strings.runningHint
-            : raceState === "failed"
-              ? strings.failedHint(Math.max(0, restartRemaining))
-              : strings.completeHint(Math.max(0, restartRemaining))
+          ? strings.runningHint
           : focusedInteraction === "car"
             ? strings.readyHint
             : strings.idleHint;
