@@ -1,7 +1,7 @@
 import * as BABYLON from "babylonjs";
 
-import { PLAYER_HEIGHT, ROOM_OFFSET } from "./constants";
-import type { AppLanguage, ProjectData, ProjectTextContent } from "./types";
+import { PLAYER_HEIGHT, ROOM_OFFSET } from "../core/constants";
+import type { AppLanguage, ProjectData, ProjectTextContent } from "../core/types";
 
 export const projects: ProjectData[] = [
   {
