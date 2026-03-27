@@ -487,6 +487,10 @@ function renderLeaderboard() {
             )}</p>
             <div class="leaderboard-entry-metrics">
               <div class="leaderboard-entry-metric">
+                <strong>${escapeHtml(ui.leaderboardMetricTotal)}</strong>
+                <span>${entry.totalScore} pts</span>
+              </div>
+              <div class="leaderboard-entry-metric">
                 <strong>${escapeHtml(ui.leaderboardMetricSlime)}</strong>
                 <span>${entry.slimeScore} pts</span>
               </div>
