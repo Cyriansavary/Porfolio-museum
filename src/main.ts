@@ -1,305 +1,112 @@
 import * as BABYLON from "babylonjs";
 import "./style.css";
-
-type ProjectData = {
-  id: string;
-  title: string;
-  subtitle: string;
-  description: string;
-  engine: string;
-  focus: string;
-  context: string;
-  role: string;
-  year: string;
-  stack: string;
-  atmosphere: string;
-  accent: string;
-  color: BABYLON.Color3;
-  position: BABYLON.Vector3;
-  viewPosition: BABYLON.Vector3;
-};
-
-type CreatedStand = {
-  root: BABYLON.TransformNode;
-  orb: BABYLON.Mesh;
-  ring: BABYLON.Mesh;
-  halo: BABYLON.Mesh;
-  display: BABYLON.Mesh;
-  beam: BABYLON.Mesh;
-  orbMaterial: BABYLON.StandardMaterial;
-  ringMaterial: BABYLON.StandardMaterial;
-  haloMaterial: BABYLON.StandardMaterial;
-  displayMaterial: BABYLON.StandardMaterial;
-};
-
-type FloatingParticle = {
-  mesh: BABYLON.InstancedMesh;
-  baseY: number;
-  offset: number;
-  speed: number;
-};
-
-type PlayerController = {
-  update: () => void;
-  syncPosition: (position: BABYLON.Vector3) => void;
-  resetInput: () => void;
-};
-
-type CollisionCamera = BABYLON.UniversalCamera & {
-  _collideWithWorld: (displacement: BABYLON.Vector3) => void;
-};
-
-type RockTextureSet = {
-  albedoTexture: BABYLON.DynamicTexture;
-  normalTexture: BABYLON.DynamicTexture;
-  roughnessTexture: BABYLON.DynamicTexture;
-};
-
-type SlimeRainDropMetadata = {
-  assetType: "slimeRainLine";
-  minY: number;
-  speed: number;
-  wind: BABYLON.Vector3;
-};
-
-type SlimeRainSystem = {
-  lines: BABYLON.InstancedMesh[];
-  respawnLine: (line: BABYLON.InstancedMesh) => void;
-};
-
-type ProjectInteractionMode = "focus" | "panel";
-
-type ProjectInteractionMetadata = {
-  projectId: string;
-  interactionMode?: ProjectInteractionMode;
-  interactionDistance?: number;
-};
-
-type SlimeEnemyState = "falling" | "chasing";
-
-type SlimeEnemy = {
-  root: BABYLON.TransformNode;
-  body: BABYLON.Mesh;
-  shell: BABYLON.Mesh;
-  shadow: BABYLON.Mesh;
-  localX: number;
-  localZ: number;
-  radius: number;
-  groundY: number;
-  velocityY: number;
-  state: SlimeEnemyState;
-  moveSpeed: number;
-  phase: number;
-  baseScale: BABYLON.Vector3;
-};
-
-type SlimeShotResult = {
-  targetPoint: BABYLON.Vector3;
-  hit: boolean;
-  scoreDelta: number;
-  totalScore: number;
-};
-
-type CombatCrosshairState = {
-  armed: boolean;
-  targeting: boolean;
-  coolingDown: boolean;
-  firing: boolean;
-  hit: boolean;
-};
-
-type SlimeEnemySystem = {
-  update: () => void;
-  disposeAll: () => void;
-  shoot: (origin: BABYLON.Vector3, direction: BABYLON.Vector3) => SlimeShotResult;
-  isPlayerInsideArena: () => boolean;
-  getScore: () => number;
-  getEnemyCount: () => number;
-  isLocked: () => boolean;
-  getPlayerHitCount: () => number;
-};
-
-type SlimeWeaponSystem = {
-  update: () => void;
-  tryShoot: () => SlimeShotResult | null;
-  isArmed: () => boolean;
-  getCrosshairState: () => CombatCrosshairState;
-  dispose: () => void;
-};
-
-type VRCookingOrderType =
-  | "classic"
-  | "cheese"
-  | "salad"
-  | "tomato"
-  | "cheeseTomato"
-  | "cheeseSalad"
-  | "fresh"
-  | "deluxe";
-
-type VRCookingInventory = {
-  bun: boolean;
-  rawSteak: boolean;
-  cookedSteak: boolean;
-  cheese: boolean;
-  lettuce: boolean;
-  tomato: boolean;
-  burger: VRCookingOrderType | null;
-};
-
-type VRCookingStationType =
-  | "bunBin"
-  | "steakBin"
-  | "cheeseBin"
-  | "saladBin"
-  | "tomatoBin"
-  | "grill"
-  | "prep"
-  | "serve"
-  | "trash";
-
-type VRCookingOrder = {
-  id: number;
-  type: VRCookingOrderType;
-  title: string;
-  ingredients: string[];
-  reward: number;
-  timeLimitMs: number;
-  remainingMs: number;
-};
-
-type CookingPopupTone = "neutral" | "success" | "warning" | "error";
-
-type VRCookingStation = {
-  id: VRCookingStationType;
-  label: string;
-  prompt: string;
-  interactionMesh: BABYLON.AbstractMesh;
-  meshes: BABYLON.AbstractMesh[];
-  emissiveColor: BABYLON.Color3;
-};
-
-type VRCookingSystem = {
-  update: () => void;
-  interact: () => boolean;
-  isPlayerInsideZone: () => boolean;
-  isLocked: () => boolean;
-  getFailureCount: () => number;
-};
-
-type DrivingInteractionId = "car";
-
-type DrivingInteractableMetadata = {
-  drivingInteractableId?: DrivingInteractionId;
-};
-
-type DrivingSimSystem = {
-  update: () => void;
-  interact: (allowExit?: boolean) => boolean;
-  isPlayerInsideZone: () => boolean;
-  isDriving: () => boolean;
-  getSpeedKph: () => number;
-};
-
-type LeaderboardCategory = "slime" | "cooking";
-
-type LeaderboardEntry = {
-  id: string;
-  name: string;
-  totalScore: number;
-  slimeScore: number;
-  cookingScore: number;
-  lastPlayedAt: number;
-};
-
-type AppLanguage = "fr" | "en";
-
-type ProjectTextContent = {
-  title: string;
-  subtitle: string;
-  description: string;
-  engine: string;
-  focus: string;
-  context: string;
-  role: string;
-  year: string;
-  stack: string;
-  atmosphere: string;
-  accent: string;
-};
-
-const PLAYER_HEIGHT = 1.72;
-const INTERACTION_DISTANCE = 6;
-const PANEL_INTERACTION_DISTANCE = 12.5;
-const SLIME_ARENA_SIZE = 30;
-const SLIME_ARENA_HALF_SIZE = 15.4;
-const SLIME_TERRAIN_Y_OFFSET = 0.06;
-const SLIME_ENEMY_MAX = 6;
-const SLIME_ENEMY_SPAWN_INTERVAL = 1.3;
-const SLIME_ENEMY_FALL_GRAVITY = 22;
-const SLIME_ENEMY_SPAWN_MIN_HEIGHT = 7.8;
-const SLIME_ENEMY_SPAWN_MAX_HEIGHT = 12.6;
-const SLIME_ENEMY_CHASE_SPEED_MIN = 2.2;
-const SLIME_ENEMY_CHASE_SPEED_MAX = 3.15;
-const SLIME_PLAYER_HIT_LIMIT = 4;
-const SLIME_PLAYER_CONTACT_DISTANCE = 1.18;
-const SLIME_WEAPON_RANGE = 24;
-const SLIME_WEAPON_COOLDOWN = 0.2;
-const SLIME_WEAPON_BOLT_LIFETIME = 120;
-const SLIME_WEAPON_SCORE_PER_KILL = 100;
-const VR_COOKING_ZONE_WIDTH = 14;
-const VR_COOKING_ZONE_DEPTH = 13.4;
-const VR_COOKING_INTERACTION_DISTANCE = 4.4;
-const VR_COOKING_GRILL_TIME = 4.5;
-const VR_COOKING_ORDER_COUNT = 2;
-const VR_COOKING_INITIAL_CLIENT_COUNT = 1;
-const VR_COOKING_SECOND_CLIENT_DELAY = 45;
-const VR_COOKING_ORDER_TIME_LIMIT = 60;
-const VR_COOKING_ORDER_WARNING_TIME = 16;
-const VR_COOKING_ORDER_DANGER_TIME = 8;
-const VR_COOKING_TIMEOUT_PENALTY = 45;
-const VR_COOKING_FAILURE_LIMIT = 3;
-const VR_COOKING_COMBO_WINDOW = 7;
-const VR_COOKING_COMBO_BONUS_STEP = 20;
-const VR_COOKING_COMBO_MAX_BONUS = 80;
-const DRIVING_ZONE_WIDTH = 72;
-const DRIVING_ZONE_DEPTH = 76;
-const DRIVING_INTERACTION_DISTANCE = 5.2;
-const DRIVING_MAX_FORWARD_SPEED = 14.5;
-const DRIVING_MAX_REVERSE_SPEED = 5.4;
-const DRIVING_ACCELERATION = 9.4;
-const DRIVING_REVERSE_ACCELERATION = 7.2;
-const DRIVING_BRAKE_DECELERATION = 15.5;
-const DRIVING_COAST_DECELERATION = 5.6;
-const DRIVING_STEER_RESPONSE = 8.4;
-const DRIVING_TURN_RATE = 1.62;
-const DRIVING_ZONE_NAV_MARGIN = 0.65;
-const WORLD_SIZE = 520;
-const START_POSITION = new BABYLON.Vector3(0, PLAYER_HEIGHT, 8);
-const ROOM_OFFSET = 15;
-const WALK_SPEED = 6.2;
-const SPRINT_SPEED = 9.6;
-const JUMP_FORCE = 6.15;
-const JUMP_ASCENT_GRAVITY = -20;
-const JUMP_RELEASE_GRAVITY = -30;
-const JUMP_DESCENT_GRAVITY = -36;
-const MAX_FALL_SPEED = -28;
-const COYOTE_TIME = 0.12;
-const JUMP_BUFFER_TIME = 0.14;
-const GROUND_STICK_FORCE = -1.8;
-const WALK_FOV = 0.92;
-const SPRINT_FOV_BOOST = 0.035;
-const GROUND_RAY_CAST_LENGTH = PLAYER_HEIGHT + 0.95;
-const GROUND_CONTACT_EPSILON = 0.12;
-const HEAD_BOB_WALK_FREQUENCY = 8.1;
-const HEAD_BOB_SPRINT_FREQUENCY = 11.2;
-const HEAD_BOB_AMPLITUDE = 0.05;
-const HEAD_SWAY_AMPLITUDE = 0.016;
-const CAMERA_ROLL_INTENSITY = 0.018;
-const LANDING_IMPACT_SCALE = 0.045;
-const LANDING_MAX_IMPULSE = 0.9;
-const LANDING_SPRING_STRENGTH = 42;
-const LANDING_SPRING_DAMPING = 14;
+import {
+  CURRENT_TESTER_STORAGE_KEY,
+  DRIVING_ACCELERATION,
+  DRIVING_BRAKE_DECELERATION,
+  DRIVING_COAST_DECELERATION,
+  DRIVING_INTERACTION_DISTANCE,
+  DRIVING_MAX_FORWARD_SPEED,
+  DRIVING_MAX_REVERSE_SPEED,
+  DRIVING_REVERSE_ACCELERATION,
+  DRIVING_STEER_RESPONSE,
+  DRIVING_TURN_RATE,
+  DRIVING_ZONE_DEPTH,
+  DRIVING_ZONE_NAV_MARGIN,
+  DRIVING_ZONE_WIDTH,
+  GROUND_CONTACT_EPSILON,
+  GROUND_RAY_CAST_LENGTH,
+  GROUND_STICK_FORCE,
+  HEAD_BOB_AMPLITUDE,
+  HEAD_BOB_SPRINT_FREQUENCY,
+  HEAD_SWAY_AMPLITUDE,
+  HEAD_BOB_WALK_FREQUENCY,
+  INTERACTION_DISTANCE,
+  JUMP_ASCENT_GRAVITY,
+  JUMP_BUFFER_TIME,
+  JUMP_DESCENT_GRAVITY,
+  JUMP_FORCE,
+  JUMP_RELEASE_GRAVITY,
+  LANGUAGE_STORAGE_KEY,
+  LANDING_IMPACT_SCALE,
+  LANDING_MAX_IMPULSE,
+  LANDING_SPRING_DAMPING,
+  LANDING_SPRING_STRENGTH,
+  LEADERBOARD_STORAGE_KEY,
+  MAX_FALL_SPEED,
+  PANEL_INTERACTION_DISTANCE,
+  PLAYER_HEIGHT,
+  ROOM_OFFSET,
+  SLIME_ARENA_HALF_SIZE,
+  SLIME_ARENA_SIZE,
+  SLIME_ENEMY_CHASE_SPEED_MAX,
+  SLIME_ENEMY_CHASE_SPEED_MIN,
+  SLIME_ENEMY_FALL_GRAVITY,
+  SLIME_ENEMY_MAX,
+  SLIME_ENEMY_SPAWN_INTERVAL,
+  SLIME_ENEMY_SPAWN_MAX_HEIGHT,
+  SLIME_ENEMY_SPAWN_MIN_HEIGHT,
+  SLIME_PLAYER_CONTACT_DISTANCE,
+  SLIME_PLAYER_HIT_LIMIT,
+  SLIME_TERRAIN_Y_OFFSET,
+  SLIME_WEAPON_BOLT_LIFETIME,
+  SLIME_WEAPON_COOLDOWN,
+  SLIME_WEAPON_RANGE,
+  SLIME_WEAPON_SCORE_PER_KILL,
+  SPRINT_FOV_BOOST,
+  SPRINT_SPEED,
+  START_POSITION,
+  VR_COOKING_COMBO_BONUS_STEP,
+  VR_COOKING_COMBO_MAX_BONUS,
+  VR_COOKING_COMBO_WINDOW,
+  VR_COOKING_FAILURE_LIMIT,
+  VR_COOKING_GRILL_TIME,
+  VR_COOKING_INITIAL_CLIENT_COUNT,
+  VR_COOKING_INTERACTION_DISTANCE,
+  VR_COOKING_ORDER_COUNT,
+  VR_COOKING_ORDER_DANGER_TIME,
+  VR_COOKING_ORDER_TIME_LIMIT,
+  VR_COOKING_ORDER_WARNING_TIME,
+  VR_COOKING_SECOND_CLIENT_DELAY,
+  VR_COOKING_TIMEOUT_PENALTY,
+  VR_COOKING_ZONE_DEPTH,
+  VR_COOKING_ZONE_WIDTH,
+  WALK_FOV,
+  WALK_SPEED,
+  WORLD_SIZE,
+  COYOTE_TIME,
+  CAMERA_ROLL_INTENSITY,
+} from "./constants";
+import type {
+  AppLanguage,
+  CollisionCamera,
+  CookingPopupTone,
+  CreatedStand,
+  DrivingInteractionId,
+  DrivingInteractableMetadata,
+  DrivingSimSystem,
+  FloatingParticle,
+  LeaderboardCategory,
+  LeaderboardEntry,
+  PlayerController,
+  ProjectData,
+  ProjectInteractionMetadata,
+  ProjectInteractionMode,
+  ProjectTextContent,
+  RockTextureSet,
+  SlimeEnemy,
+  SlimeEnemySystem,
+  SlimeRainDropMetadata,
+  SlimeRainSystem,
+  SlimeWeaponSystem,
+  VRCookingInventory,
+  VRCookingOrder,
+  VRCookingOrderType,
+  VRCookingStation,
+  VRCookingStationType,
+  VRCookingSystem,
+} from "./types";
+import { uiText } from "./ui-text";
 
 const projects: ProjectData[] = [
   {
@@ -506,147 +313,6 @@ const projectTextByLanguage: Record<AppLanguage, Record<string, ProjectTextConte
     },
   },
 };
-
-const LANGUAGE_STORAGE_KEY = "portfolio-museum-language";
-const LEADERBOARD_STORAGE_KEY = "portfolio-museum-leaderboard";
-const CURRENT_TESTER_STORAGE_KEY = "portfolio-museum-current-tester";
-
-const uiText = {
-  fr: {
-    htmlLang: "fr",
-    languageToggle: "EN",
-    brandEyebrow: "Gameplay Programmer Portfolio",
-    introCopy:
-      "Portfolio interactif consacre a la programmation gameplay, aux systemes temps reel et a la mise en scene de projets techniques.",
-    overviewTrigger: "Pas le temps pour jouer ? Clique ici",
-    leaderboardTrigger: "Leaderboard",
-    closePanel: "Masquer la fiche",
-    heroEyebrow: "Hall central",
-    heroTitle: "Visite libre en vue FPS.",
-    heroBody:
-      "Clique dans la scene pour capturer la souris, deplace-toi en ZQSD ou WASD, maintiens Shift pour sprinter, Space pour sauter, puis vise un stand et appuie sur E pour ouvrir sa fiche.",
-    combatEyebrow: "Survivor Slime",
-    combatTitle: "Arc Blaster",
-    combatDefault:
-      "Clic gauche pour tirer. Les slimes continuent de repop tant que tu restes dans l'arene.",
-    cookingEyebrow: "VR Cooking",
-    cookingTitle: "Service burgers",
-    cookingRushStable: "Cuisine stable",
-    cookingComboBase: "Combo x1",
-    cookingHeldEmpty: "Mains vides",
-    cookingHintDefault: "Vise une station et clique ou appuie sur E pour interagir.",
-    drivingEyebrow: "DrivingSim",
-    drivingTitle: "Urban Test Loop",
-    drivingModeOnFoot: "A pied",
-    drivingHintDefault:
-      "Approche-toi de la voiture et clique ou appuie sur E pour prendre le volant.",
-    projectVideoEyebrow: "Presentation video",
-    projectVideoFrameLabel: "Trailer / gameplay capture",
-    metaEngine: "Moteur",
-    metaFocus: "Focus",
-    metaContext: "Contexte",
-    metaRole: "Role",
-    metaYear: "Periode",
-    metaStack: "Stack",
-    overviewEyebrow: "Fast Track",
-    overviewTitle: "Tous les projets en un coup d'oeil",
-    overviewBody:
-      "Une lecture rapide du portfolio si tu n'as pas le temps de faire la visite interactive.",
-    closeOverview: "Fermer",
-    leaderboardEyebrow: "Leaderboard partage",
-    leaderboardTitle: "Scores des joueurs",
-    leaderboardBody:
-      "Choisis un nom de joueur pour cumuler les points de Survivor Slime et VR Cooking et partager le score avec les autres visiteurs.",
-    closeLeaderboard: "Fermer",
-    leaderboardCurrentEyebrow: "Joueur actif",
-    leaderboardCurrentEmpty: "Aucun joueur",
-    leaderboardCurrentTotal: "Total cumule",
-    leaderboardNameLabel: "Nom du joueur",
-    leaderboardNamePlaceholder: "Entre un nom",
-    leaderboardSave: "Activer",
-    leaderboardHint:
-      "Le score cumule les points de combat et de cuisine. Les donnees sont synchronisees avec le site.",
-    leaderboardListEyebrow: "Classement global",
-    leaderboardEmpty:
-      "Aucun score enregistre pour l'instant. Cree un joueur puis lance un mini-jeu pour alimenter le classement.",
-    leaderboardMetricTotal: "Total",
-    leaderboardMetricSlime: "Slime",
-    leaderboardMetricCooking: "Cooking",
-    leaderboardMetricUpdated: "Derniere activite",
-    testerSummaryEmpty: "Aucun joueur actif",
-    testerSummaryLabel: "Joueur",
-    hintCapture: "Clic scene pour capturer la souris",
-    hintMove: "ZQSD / WASD pour marcher, Shift pour sprint, Space pour sauter",
-    hintOpen: "E pour ouvrir, Echap pour liberer",
-  },
-  en: {
-    htmlLang: "en",
-    languageToggle: "FR",
-    brandEyebrow: "Gameplay Programmer Portfolio",
-    introCopy:
-      "Interactive portfolio dedicated to gameplay programming, real-time systems and the staging of technical projects.",
-    overviewTrigger: "No time to play? Click here",
-    leaderboardTrigger: "Leaderboard",
-    closePanel: "Hide project sheet",
-    heroEyebrow: "Central hall",
-    heroTitle: "Free-roam FPS visit.",
-    heroBody:
-      "Click in the scene to capture the mouse, move with ZQSD or WASD, hold Shift to sprint, Space to jump, then aim at a stand and press E to open its sheet.",
-    combatEyebrow: "Survivor Slime",
-    combatTitle: "Arc Blaster",
-    combatDefault:
-      "Left click to shoot. Slimes keep respawning as long as you stay inside the arena.",
-    cookingEyebrow: "VR Cooking",
-    cookingTitle: "Burger service",
-    cookingRushStable: "Kitchen stable",
-    cookingComboBase: "Combo x1",
-    cookingHeldEmpty: "Hands empty",
-    cookingHintDefault: "Aim at a station and click or press E to interact.",
-    drivingEyebrow: "DrivingSim",
-    drivingTitle: "Urban Test Loop",
-    drivingModeOnFoot: "On foot",
-    drivingHintDefault:
-      "Get close to the car and click or press E to take the wheel.",
-    projectVideoEyebrow: "Video presentation",
-    projectVideoFrameLabel: "Trailer / gameplay capture",
-    metaEngine: "Engine",
-    metaFocus: "Focus",
-    metaContext: "Context",
-    metaRole: "Role",
-    metaYear: "Period",
-    metaStack: "Stack",
-    overviewEyebrow: "Fast Track",
-    overviewTitle: "All projects at a glance",
-    overviewBody:
-      "A quick read-through of the portfolio if you do not have time for the interactive visit.",
-    closeOverview: "Close",
-    leaderboardEyebrow: "Shared leaderboard",
-    leaderboardTitle: "Player scores",
-    leaderboardBody:
-      "Pick a player name to accumulate Survivor Slime and VR Cooking points and share the score with other visitors.",
-    closeLeaderboard: "Close",
-    leaderboardCurrentEyebrow: "Active player",
-    leaderboardCurrentEmpty: "No player selected",
-    leaderboardCurrentTotal: "Total score",
-    leaderboardNameLabel: "Player name",
-    leaderboardNamePlaceholder: "Enter a name",
-    leaderboardSave: "Activate",
-    leaderboardHint:
-      "The score combines combat and cooking points. Data is synced with the website.",
-    leaderboardListEyebrow: "Global ranking",
-    leaderboardEmpty:
-      "No score recorded yet. Create a player and launch a mini-game to feed the ranking.",
-    leaderboardMetricTotal: "Total",
-    leaderboardMetricSlime: "Slime",
-    leaderboardMetricCooking: "Cooking",
-    leaderboardMetricUpdated: "Last activity",
-    testerSummaryEmpty: "No active player",
-    testerSummaryLabel: "Player",
-    hintCapture: "Click scene to capture the mouse",
-    hintMove: "ZQSD / WASD to move, Shift to sprint, Space to jump",
-    hintOpen: "E to open, Escape to release",
-  },
-} as const;
 
 const canvas = document.getElementById("renderCanvas") as HTMLCanvasElement;
 const engine = new BABYLON.Engine(canvas, true, {
@@ -2383,8 +2049,6 @@ function createVRCookingSystem(
 
   const registerStation = (
     id: VRCookingStationType,
-    label: string,
-    prompt: string,
     interactionMesh: BABYLON.AbstractMesh,
     meshes: BABYLON.AbstractMesh[],
     emissiveColor: BABYLON.Color3
@@ -2392,8 +2056,6 @@ function createVRCookingSystem(
     interactionMesh.metadata = { vrCookingStationId: id };
     stations.set(id, {
       id,
-      label,
-      prompt,
       interactionMesh,
       meshes,
       emissiveColor,
@@ -3205,8 +2867,6 @@ function createVRCookingSystem(
   }
   registerStation(
     "bunBin",
-    "Bac a pains",
-    "Prendre un pain burger",
     bunHotspot,
     [bunHotspot],
     new BABYLON.Color3(1, 0.78, 0.32)
@@ -3253,8 +2913,6 @@ function createVRCookingSystem(
   }
   registerStation(
     "steakBin",
-    "Bac a steaks",
-    "Prendre un steak cru",
     steakHotspot,
     [steakHotspot],
     new BABYLON.Color3(0.96, 0.34, 0.3)
@@ -3302,8 +2960,6 @@ function createVRCookingSystem(
   }
   registerStation(
     "cheeseBin",
-    "Bac a fromage",
-    "Prendre du fromage",
     cheeseHotspot,
     [cheeseHotspot],
     new BABYLON.Color3(1, 0.88, 0.28)
@@ -3351,8 +3007,6 @@ function createVRCookingSystem(
   }
   registerStation(
     "saladBin",
-    "Bac a salade",
-    "Prendre de la salade",
     saladHotspot,
     [saladHotspot],
     new BABYLON.Color3(0.3, 0.95, 0.34)
@@ -3399,8 +3053,6 @@ function createVRCookingSystem(
   }
   registerStation(
     "tomatoBin",
-    "Bac a tomates",
-    "Prendre de la tomate",
     tomatoHotspot,
     [tomatoHotspot],
     new BABYLON.Color3(0.94, 0.34, 0.28)
@@ -3457,8 +3109,6 @@ function createVRCookingSystem(
   grillPatty.setEnabled(false);
   registerStation(
     "grill",
-    "Grill",
-    "Cuire ou recuperer le steak",
     grillHotspot,
     [grillHotspot, grillGlow],
     new BABYLON.Color3(1, 0.42, 0.18)
@@ -3487,8 +3137,6 @@ function createVRCookingSystem(
   );
   registerStation(
     "prep",
-    "Plan de montage",
-    "Assembler un burger",
     prepHotspot,
     [prepHotspot],
     new BABYLON.Color3(1, 0.76, 0.32)
@@ -3521,8 +3169,6 @@ function createVRCookingSystem(
   serveBell.material = steelMaterial;
   registerStation(
     "serve",
-    "Comptoir client",
-    "Servir les clients",
     serveHotspot,
     [serveHotspot],
     new BABYLON.Color3(0.34, 0.88, 1)
@@ -3592,8 +3238,6 @@ function createVRCookingSystem(
   );
   registerStation(
     "trash",
-    "Poubelle",
-    "Vider le plateau",
     trashHotspot,
     [trashHotspot],
     new BABYLON.Color3(0.9, 0.28, 0.28)
