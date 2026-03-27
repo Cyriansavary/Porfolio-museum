@@ -202,7 +202,7 @@ export type DrivingSimSystem = {
   getSpeedKph: () => number;
 };
 
-export type LeaderboardCategory = "slime" | "cooking";
+export type LeaderboardCategory = "slime" | "cooking" | "driving";
 
 export type LeaderboardEntry = {
   id: string;
@@ -210,6 +210,7 @@ export type LeaderboardEntry = {
   totalScore: number;
   slimeScore: number;
   cookingScore: number;
+  drivingScore: number;
   lastPlayedAt: number;
 };
 

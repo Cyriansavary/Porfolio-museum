@@ -27,6 +27,8 @@ export const uiText = {
     drivingModeOnFoot: "A pied",
     drivingHintDefault:
       "Approche-toi de la voiture et clique ou appuie sur E pour prendre le volant.",
+    drivingRaceIdle: "Course en attente",
+    drivingRaceScore: "Score course",
     projectVideoEyebrow: "Presentation video",
     projectVideoFrameLabel: "Trailer / gameplay capture",
     metaEngine: "Moteur",
@@ -43,7 +45,7 @@ export const uiText = {
     leaderboardEyebrow: "Leaderboard partage",
     leaderboardTitle: "Scores des joueurs",
     leaderboardBody:
-      "Choisis un nom de joueur pour cumuler les points de Survivor Slime et VR Cooking et partager le score avec les autres visiteurs.",
+      "Choisis un nom de joueur pour cumuler les points de Survivor Slime, VR Cooking et DrivingSim et partager le score avec les autres visiteurs.",
     closeLeaderboard: "Fermer",
     leaderboardCurrentEyebrow: "Joueur actif",
     leaderboardCurrentEmpty: "Aucun joueur",
@@ -52,13 +54,14 @@ export const uiText = {
     leaderboardNamePlaceholder: "Entre un nom",
     leaderboardSave: "Activer",
     leaderboardHint:
-      "Le score cumule les points de combat et de cuisine. Les donnees sont synchronisees avec le site.",
+      "Le score cumule les points de combat, de cuisine et de course. Les donnees sont synchronisees avec le site.",
     leaderboardListEyebrow: "Classement global",
     leaderboardEmpty:
       "Aucun score enregistre pour l'instant. Cree un joueur puis lance un mini-jeu pour alimenter le classement.",
     leaderboardMetricTotal: "Total",
     leaderboardMetricSlime: "Slime",
     leaderboardMetricCooking: "Cooking",
+    leaderboardMetricDriving: "Driving",
     leaderboardMetricUpdated: "Derniere activite",
     testerSummaryEmpty: "Aucun joueur actif",
     testerSummaryLabel: "Joueur",
@@ -94,6 +97,8 @@ export const uiText = {
     drivingModeOnFoot: "On foot",
     drivingHintDefault:
       "Get close to the car and click or press E to take the wheel.",
+    drivingRaceIdle: "Race idle",
+    drivingRaceScore: "Run score",
     projectVideoEyebrow: "Video presentation",
     projectVideoFrameLabel: "Trailer / gameplay capture",
     metaEngine: "Engine",
@@ -110,7 +115,7 @@ export const uiText = {
     leaderboardEyebrow: "Shared leaderboard",
     leaderboardTitle: "Player scores",
     leaderboardBody:
-      "Pick a player name to accumulate Survivor Slime and VR Cooking points and share the score with other visitors.",
+      "Pick a player name to accumulate Survivor Slime, VR Cooking and DrivingSim points and share the score with other visitors.",
     closeLeaderboard: "Close",
     leaderboardCurrentEyebrow: "Active player",
     leaderboardCurrentEmpty: "No player selected",
@@ -119,13 +124,14 @@ export const uiText = {
     leaderboardNamePlaceholder: "Enter a name",
     leaderboardSave: "Activate",
     leaderboardHint:
-      "The score combines combat and cooking points. Data is synced with the website.",
+      "The score combines combat, cooking and driving points. Data is synced with the website.",
     leaderboardListEyebrow: "Global ranking",
     leaderboardEmpty:
       "No score recorded yet. Create a player and launch a mini-game to feed the ranking.",
     leaderboardMetricTotal: "Total",
     leaderboardMetricSlime: "Slime",
     leaderboardMetricCooking: "Cooking",
+    leaderboardMetricDriving: "Driving",
     leaderboardMetricUpdated: "Last activity",
     testerSummaryEmpty: "No active player",
     testerSummaryLabel: "Player",

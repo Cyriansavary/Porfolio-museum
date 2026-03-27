@@ -60,6 +60,7 @@ function normalizeEntry(record) {
     totalScore: Math.max(0, Number(record?.totalScore ?? record?.total_score) || 0),
     slimeScore: Math.max(0, Number(record?.slimeScore ?? record?.slime_score) || 0),
     cookingScore: Math.max(0, Number(record?.cookingScore ?? record?.cooking_score) || 0),
+    drivingScore: Math.max(0, Number(record?.drivingScore ?? record?.driving_score) || 0),
     lastPlayedAt: getTimestamp(record?.lastPlayedAt ?? record?.last_played_at),
   };
 }
@@ -130,8 +131,14 @@ async function ensureSchema() {
           total_score INTEGER NOT NULL DEFAULT 0,
           slime_score INTEGER NOT NULL DEFAULT 0,
           cooking_score INTEGER NOT NULL DEFAULT 0,
+          driving_score INTEGER NOT NULL DEFAULT 0,
           last_played_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
         )
+      `;
+
+      await sql`
+        ALTER TABLE leaderboard_testers
+        ADD COLUMN IF NOT EXISTS driving_score INTEGER NOT NULL DEFAULT 0
       `;
 
       await sql`
@@ -162,6 +169,7 @@ async function listLeaderboardEntriesFromPostgres() {
       total_score,
       slime_score,
       cooking_score,
+      driving_score,
       last_played_at
     FROM leaderboard_testers
     ORDER BY total_score DESC, last_played_at DESC, name ASC
@@ -200,6 +208,7 @@ async function activateTesterInPostgres(nameInput, allowRetry = true) {
         total_score,
         slime_score,
         cooking_score,
+        driving_score,
         last_played_at
     `;
 
@@ -217,11 +226,13 @@ async function activateTesterInPostgres(nameInput, allowRetry = true) {
         total_score,
         slime_score,
         cooking_score,
+        driving_score,
         last_played_at
       )
       VALUES (
         ${randomUUID()},
         ${name},
+        0,
         0,
         0,
         0,
@@ -233,6 +244,7 @@ async function activateTesterInPostgres(nameInput, allowRetry = true) {
         total_score,
         slime_score,
         cooking_score,
+        driving_score,
         last_played_at
     `;
 
@@ -258,7 +270,7 @@ async function addLeaderboardScoreInPostgres(payload) {
     throw createError(400, "Tester id is required");
   }
 
-  if (category !== "slime" && category !== "cooking") {
+  if (category !== "slime" && category !== "cooking" && category !== "driving") {
     throw createError(400, "Unknown leaderboard category");
   }
 
@@ -273,6 +285,7 @@ async function addLeaderboardScoreInPostgres(payload) {
         total_score,
         slime_score,
         cooking_score,
+        driving_score,
         last_played_at
       FROM leaderboard_testers
       WHERE id = ${testerId}
@@ -300,23 +313,42 @@ async function addLeaderboardScoreInPostgres(payload) {
             total_score,
             slime_score,
             cooking_score,
+            driving_score,
             last_played_at
         `
-      : await sql`
-          UPDATE leaderboard_testers
-          SET
-            total_score = GREATEST(0, total_score + ${delta}),
-            cooking_score = GREATEST(0, cooking_score + ${delta}),
-            last_played_at = NOW()
-          WHERE id = ${testerId}
-          RETURNING
-            id,
-            name,
-            total_score,
-            slime_score,
-            cooking_score,
-            last_played_at
-        `;
+      : category === "cooking"
+        ? await sql`
+            UPDATE leaderboard_testers
+            SET
+              total_score = GREATEST(0, total_score + ${delta}),
+              cooking_score = GREATEST(0, cooking_score + ${delta}),
+              last_played_at = NOW()
+            WHERE id = ${testerId}
+            RETURNING
+              id,
+              name,
+              total_score,
+              slime_score,
+              cooking_score,
+              driving_score,
+              last_played_at
+          `
+        : await sql`
+            UPDATE leaderboard_testers
+            SET
+              total_score = GREATEST(0, total_score + ${delta}),
+              driving_score = GREATEST(0, driving_score + ${delta}),
+              last_played_at = NOW()
+            WHERE id = ${testerId}
+            RETURNING
+              id,
+              name,
+              total_score,
+              slime_score,
+              cooking_score,
+              driving_score,
+              last_played_at
+          `;
 
   if (updatedRows.length === 0) {
     throw createError(404, "Tester not found");
@@ -389,6 +421,7 @@ async function activateTesterInFile(nameInput) {
         totalScore: 0,
         slimeScore: 0,
         cookingScore: 0,
+        drivingScore: 0,
         lastPlayedAt: Date.now(),
       };
       entries.push(entry);
@@ -414,7 +447,7 @@ async function addLeaderboardScoreInFile(payload) {
     throw createError(400, "Tester id is required");
   }
 
-  if (category !== "slime" && category !== "cooking") {
+  if (category !== "slime" && category !== "cooking" && category !== "driving") {
     throw createError(400, "Unknown leaderboard category");
   }
 
@@ -436,8 +469,10 @@ async function addLeaderboardScoreInFile(payload) {
     entry.totalScore = Math.max(0, entry.totalScore + delta);
     if (category === "slime") {
       entry.slimeScore = Math.max(0, entry.slimeScore + delta);
-    } else {
+    } else if (category === "cooking") {
       entry.cookingScore = Math.max(0, entry.cookingScore + delta);
+    } else {
+      entry.drivingScore = Math.max(0, entry.drivingScore + delta);
     }
     entry.lastPlayedAt = Date.now();
 

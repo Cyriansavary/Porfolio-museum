@@ -6,6 +6,11 @@ import {
   DRIVING_COAST_DECELERATION,
   DRIVING_INTERACTION_DISTANCE,
   DRIVING_MAX_FORWARD_SPEED,
+  DRIVING_RACE_CHECKPOINT_RADIUS,
+  DRIVING_RACE_CHECKPOINT_SCORE,
+  DRIVING_RACE_FINISH_BONUS,
+  DRIVING_RACE_RESTART_DELAY,
+  DRIVING_RACE_SEGMENT_TIME,
   DRIVING_MAX_REVERSE_SPEED,
   DRIVING_REVERSE_ACCELERATION,
   DRIVING_STEER_RESPONSE,
@@ -23,6 +28,7 @@ import type {
   DrivingInteractableMetadata,
   DrivingInteractionId,
   DrivingSimSystem,
+  LeaderboardCategory,
   PlayerController,
   ProjectData,
 } from "../core/types";
@@ -31,12 +37,22 @@ import { lookAtTarget } from "../scene/camera-utils";
 import { getRoomBasis } from "../scene/room-basis";
 
 export type DrivingSimSystemDeps = {
+  awardLeaderboardPoints: (category: LeaderboardCategory, delta: number) => void;
   canvas: HTMLCanvasElement;
+  drivingCheckpoint: HTMLSpanElement;
   drivingHint: HTMLParagraphElement;
   drivingHud: HTMLDivElement;
   drivingMode: HTMLSpanElement;
+  drivingPopup: HTMLDivElement;
+  drivingRace: HTMLParagraphElement;
   drivingSpeed: HTMLSpanElement;
-  getCurrentUiText: () => { drivingModeOnFoot: string };
+  drivingTimer: HTMLSpanElement;
+  getCurrentUiText: () => {
+    drivingHintDefault: string;
+    drivingModeOnFoot: string;
+    drivingRaceIdle: string;
+    drivingRaceScore: string;
+  };
   getFreeRoamStatusMessage: () => string;
   getIsPointerLocked: () => boolean;
   isLeaderboardOpen: () => boolean;
@@ -60,6 +76,24 @@ export function getDrivingRoadRects() {
     { name: "eastConnector", minX: 5.2, maxX: 19.2, minZ: 6.2, maxZ: 17.8 },
   ];
 }
+
+type DrivingRaceCheckpoint = {
+  x: number;
+  z: number;
+};
+
+type DrivingRaceState = "idle" | "running" | "failed" | "complete";
+
+const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
+  { x: 0, z: -25.4 },
+  { x: 0, z: -14.6 },
+  { x: 23.8, z: -17.8 },
+  { x: 23.8, z: 21.2 },
+  { x: -23.8, z: 21.2 },
+  { x: -23.8, z: 2.2 },
+  { x: 0, z: 2.2 },
+  { x: 0, z: -31.2 },
+];
 
 function isInsideDrivingRoad(
   roadRects: ReturnType<typeof getDrivingRoadRects>,
@@ -333,11 +367,16 @@ export function createDrivingSimSystem(
   deps: DrivingSimSystemDeps
 ): DrivingSimSystem {
   const {
+    awardLeaderboardPoints,
     canvas,
+    drivingCheckpoint,
     drivingHint,
     drivingHud,
     drivingMode,
+    drivingPopup,
+    drivingRace,
     drivingSpeed,
+    drivingTimer,
     getCurrentUiText,
     getFreeRoamStatusMessage,
     getIsPointerLocked,
@@ -387,10 +426,196 @@ export function createDrivingSimSystem(
     toWorld(0, 0.02, -31.8),
     yaw + Math.PI
   );
+  const checkpointRoot = new BABYLON.TransformNode(
+    `${project.id}_raceCheckpointRoot`,
+    scene
+  );
+  const checkpointHoop = BABYLON.MeshBuilder.CreateTorus(
+    `${project.id}_raceCheckpointHoop`,
+    {
+      diameter: DRIVING_RACE_CHECKPOINT_RADIUS * 1.55,
+      thickness: 0.22,
+      tessellation: 42,
+    },
+    scene
+  );
+  checkpointHoop.parent = checkpointRoot;
+  checkpointHoop.position.y = 1.95;
+  checkpointHoop.rotation.x = Math.PI / 2;
+  checkpointHoop.isPickable = false;
+  checkpointHoop.material = createMaterial(
+    scene,
+    `${project.id}_raceCheckpointHoopMat`,
+    project.color.scale(0.42).add(new BABYLON.Color3(0.12, 0.12, 0.12)),
+    project.color.scale(0.94),
+    0.9
+  );
+
+  const checkpointBase = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_raceCheckpointBase`,
+    {
+      diameter: DRIVING_RACE_CHECKPOINT_RADIUS * 1.55,
+      height: 0.05,
+      tessellation: 40,
+    },
+    scene
+  );
+  checkpointBase.parent = checkpointRoot;
+  checkpointBase.position.y = 0.02;
+  checkpointBase.isPickable = false;
+  checkpointBase.material = createMaterial(
+    scene,
+    `${project.id}_raceCheckpointBaseMat`,
+    project.color.scale(0.18),
+    project.color.scale(0.32),
+    0.26
+  );
+
+  const checkpointBeam = BABYLON.MeshBuilder.CreateCylinder(
+    `${project.id}_raceCheckpointBeam`,
+    {
+      diameter: 0.56,
+      height: 4.1,
+      tessellation: 20,
+    },
+    scene
+  );
+  checkpointBeam.parent = checkpointRoot;
+  checkpointBeam.position.y = 2.08;
+  checkpointBeam.isPickable = false;
+  checkpointBeam.material = createMaterial(
+    scene,
+    `${project.id}_raceCheckpointBeamMat`,
+    project.color.scale(0.14),
+    project.color.scale(0.28),
+    0.12
+  );
+  checkpointRoot.setEnabled(false);
+
   let driving = false;
   let speed = 0;
   let steering = 0;
   let focusedInteraction: DrivingInteractionId | null = null;
+  let raceState: DrivingRaceState = "idle";
+  let activeCheckpointIndex = 0;
+  let checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+  let runScore = 0;
+  let restartRemaining = 0;
+  let drivingPopupHideAt = 0;
+
+  function getDrivingStrings() {
+    const isFrench = languageState.currentLanguage === "fr";
+    return {
+      vehicleReady: isFrench ? "Vehicule pret" : "Vehicle ready",
+      raceLive: isFrench ? "Course active" : "Race live",
+      raceFailed: isFrench ? "Course perdue" : "Run failed",
+      raceComplete: isFrench ? "Tour valide" : "Lap complete",
+      checkpointLabel: (index: number, total: number) =>
+        isFrench ? `Checkpoint ${index}/${total}` : `Checkpoint ${index}/${total}`,
+      nextHint: isFrench ? "8 checkpoints" : "8 checkpoints",
+      readyHint: isFrench
+        ? "Clique ou appuie sur E pour entrer dans la voiture et lancer la course."
+        : "Click or press E to enter the car and launch the race.",
+      idleHint: isFrench
+        ? "Approche-toi de la voiture rouge pour lancer une course chronometree."
+        : "Get close to the red car to launch the timed race.",
+      runningHint: isFrench
+        ? "Traverse les cercles avant la fin du chrono. Space freine, E pour sortir du vehicule."
+        : "Drive through the circles before the timer runs out. Space brakes, E exits the vehicle.",
+      failedHint: (seconds: number) =>
+        isFrench
+          ? `Temps depasse. Nouveau run dans ${seconds.toFixed(1)} s.`
+          : `Time up. New run in ${seconds.toFixed(1)} s.`,
+      completeHint: (seconds: number) =>
+        isFrench
+          ? `Tour valide. Nouveau run dans ${seconds.toFixed(1)} s.`
+          : `Lap complete. New run in ${seconds.toFixed(1)} s.`,
+      checkpointPopup: (index: number, total: number) =>
+        isFrench
+          ? `Checkpoint ${index}/${total} +${DRIVING_RACE_CHECKPOINT_SCORE}`
+          : `Checkpoint ${index}/${total} +${DRIVING_RACE_CHECKPOINT_SCORE}`,
+      finishPopup: isFrench
+        ? `Tour valide +${DRIVING_RACE_FINISH_BONUS}`
+        : `Lap complete +${DRIVING_RACE_FINISH_BONUS}`,
+      failPopup: isFrench ? "Temps depasse" : "Time up",
+    };
+  }
+
+  function hideDrivingPopup() {
+    drivingPopup.classList.remove("visible", "success", "warning", "error");
+    drivingPopupHideAt = 0;
+  }
+
+  function showDrivingPopup(
+    message: string,
+    tone: "success" | "warning" | "error" = "success"
+  ) {
+    drivingPopup.textContent = message;
+    drivingPopup.classList.remove("visible", "success", "warning", "error");
+    void drivingPopup.offsetWidth;
+    drivingPopup.classList.add(tone, "visible");
+    drivingPopupHideAt = performance.now() + 900;
+  }
+
+  function positionCheckpoint(index: number) {
+    const checkpoint = DRIVING_RACE_CHECKPOINTS[index];
+    checkpointRoot.position.copyFrom(toWorld(checkpoint.x, 0, checkpoint.z));
+  }
+
+  function resetRace() {
+    raceState = "idle";
+    activeCheckpointIndex = 0;
+    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    restartRemaining = 0;
+    runScore = 0;
+    checkpointRoot.setEnabled(false);
+    hideDrivingPopup();
+  }
+
+  function startRace() {
+    raceState = "running";
+    activeCheckpointIndex = 0;
+    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    restartRemaining = 0;
+    runScore = 0;
+    positionCheckpoint(activeCheckpointIndex);
+    checkpointRoot.setEnabled(true);
+    hideDrivingPopup();
+  }
+
+  function scheduleRaceRestart(nextState: Extract<DrivingRaceState, "failed" | "complete">) {
+    raceState = nextState;
+    restartRemaining = DRIVING_RACE_RESTART_DELAY;
+    checkpointRoot.setEnabled(false);
+  }
+
+  function advanceCheckpoint() {
+    const strings = getDrivingStrings();
+    runScore += DRIVING_RACE_CHECKPOINT_SCORE;
+    awardLeaderboardPoints("driving", DRIVING_RACE_CHECKPOINT_SCORE);
+
+    const reachedIndex = activeCheckpointIndex + 1;
+    if (activeCheckpointIndex >= DRIVING_RACE_CHECKPOINTS.length - 1) {
+      runScore += DRIVING_RACE_FINISH_BONUS;
+      awardLeaderboardPoints("driving", DRIVING_RACE_FINISH_BONUS);
+      showDrivingPopup(strings.finishPopup, "success");
+      scheduleRaceRestart("complete");
+      return;
+    }
+
+    activeCheckpointIndex += 1;
+    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    positionCheckpoint(activeCheckpointIndex);
+    showDrivingPopup(
+      strings.checkpointPopup(reachedIndex, DRIVING_RACE_CHECKPOINTS.length),
+      "success"
+    );
+  }
+
+  function failRace() {
+    showDrivingPopup(getDrivingStrings().failPopup, "error");
+    scheduleRaceRestart("failed");
+  }
 
   function isInsideZonePoint(position: BABYLON.Vector3) {
     const local = toLocal(position);
@@ -424,6 +649,7 @@ export function createDrivingSimSystem(
     camera.fov = WALK_FOV + 0.01;
     syncCrosshairVisibility();
     updateStatus(getFreeRoamStatusMessage());
+    startRace();
   }
 
   function exitVehicle() {
@@ -450,6 +676,7 @@ export function createDrivingSimSystem(
     setIsDrivingVehicle(false);
     syncCrosshairVisibility();
     updateStatus(getFreeRoamStatusMessage());
+    resetRace();
   }
 
   function isPressed(...codes: string[]) {
@@ -607,6 +834,35 @@ export function createDrivingSimSystem(
           speed = moveToward(speed, 0, DRIVING_BRAKE_DECELERATION * 2.2 * dt);
         }
 
+        if (raceState === "running") {
+          if (canControl) {
+            checkpointRemaining = Math.max(0, checkpointRemaining - dt);
+          }
+
+          const localCarPosition = toLocal(car.root.position);
+          const activeCheckpoint = DRIVING_RACE_CHECKPOINTS[activeCheckpointIndex];
+          if (
+            Math.hypot(
+              localCarPosition.x - activeCheckpoint.x,
+              localCarPosition.z - activeCheckpoint.z
+            ) <= DRIVING_RACE_CHECKPOINT_RADIUS
+          ) {
+            advanceCheckpoint();
+          } else if (checkpointRemaining <= 0) {
+            failRace();
+          }
+        } else if (
+          (raceState === "failed" || raceState === "complete") &&
+          restartRemaining > 0
+        ) {
+          if (canControl) {
+            restartRemaining = Math.max(0, restartRemaining - dt);
+          }
+          if (restartRemaining <= 0) {
+            startRace();
+          }
+        }
+
         car.chassis.rotation.z = BABYLON.Scalar.Lerp(
           car.chassis.rotation.z,
           -steering * speedRatio * 0.09,
@@ -675,6 +931,23 @@ export function createDrivingSimSystem(
         }
       }
 
+      if (checkpointRoot.isEnabled()) {
+        checkpointHoop.rotation.y += dt * 1.6;
+        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.0065);
+        checkpointRoot.position.y = Math.sin(performance.now() * 0.003) * 0.08;
+        if (checkpointHoop.material instanceof BABYLON.StandardMaterial) {
+          checkpointHoop.material.emissiveColor = project.color.scale(0.82 + pulse * 0.4);
+        }
+        if (checkpointBase.material instanceof BABYLON.StandardMaterial) {
+          checkpointBase.material.alpha = 0.16 + pulse * 0.12;
+        }
+        if (checkpointBeam.material instanceof BABYLON.StandardMaterial) {
+          checkpointBeam.material.alpha = 0.08 + pulse * 0.06;
+        }
+      } else {
+        checkpointRoot.position.y = 0;
+      }
+
       if (car.interactionHalo.material instanceof BABYLON.StandardMaterial) {
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
         car.interactionHalo.material.alpha = driving
@@ -694,32 +967,75 @@ export function createDrivingSimSystem(
 
       drivingHud.classList.toggle("hidden", !visible);
       if (visible) {
+        const strings = getDrivingStrings();
+        const timerValue =
+          raceState === "running"
+            ? checkpointRemaining
+            : restartRemaining > 0
+              ? restartRemaining
+              : DRIVING_RACE_SEGMENT_TIME;
         drivingSpeed.textContent = `${Math.round(Math.abs(speed) * 3.6)
           .toString()
           .padStart(3, "0")} km/h`;
         drivingMode.textContent = driving
-          ? languageState.currentLanguage === "fr"
-            ? "Au volant"
-            : "Driving"
+          ? raceState === "running"
+            ? strings.raceLive
+            : raceState === "failed"
+              ? strings.raceFailed
+              : strings.raceComplete
           : focusedInteraction === "car"
-            ? languageState.currentLanguage === "fr"
-              ? "Vehicule pret"
-              : "Vehicle ready"
+            ? strings.vehicleReady
             : getCurrentUiText().drivingModeOnFoot;
-        drivingMode.classList.toggle("active", driving);
-        drivingHint.textContent = driving
-          ? languageState.currentLanguage === "fr"
-            ? "ZQSD / WASD pour accelerer et tourner. Space freine, E pour sortir du vehicule."
-            : "ZQSD / WASD to accelerate and steer. Space brakes, E exits the vehicle."
+        drivingCheckpoint.textContent = driving
+          ? raceState === "running"
+            ? strings.checkpointLabel(
+                activeCheckpointIndex + 1,
+                DRIVING_RACE_CHECKPOINTS.length
+              )
+            : getCurrentUiText().drivingRaceIdle
           : focusedInteraction === "car"
-            ? languageState.currentLanguage === "fr"
-              ? "Clique ou appuie sur E pour entrer dans la voiture et lancer un tour."
-              : "Click or press E to enter the car and start a run."
-            : languageState.currentLanguage === "fr"
-              ? "Approche-toi de la voiture rouge pour prendre le controle du vehicule."
-              : "Get close to the red car to take control of the vehicle.";
+            ? strings.nextHint
+            : getCurrentUiText().drivingRaceIdle;
+        drivingTimer.textContent = `${timerValue.toFixed(1)} s`;
+        drivingRace.textContent = `${getCurrentUiText().drivingRaceScore}: ${runScore
+          .toString()
+          .padStart(4, "0")}`;
+        drivingMode.classList.toggle("active", driving);
+        drivingCheckpoint.classList.toggle(
+          "active",
+          driving && raceState === "running"
+        );
+        drivingTimer.classList.toggle(
+          "warning",
+          driving &&
+            raceState === "running" &&
+            checkpointRemaining <= 5 &&
+            checkpointRemaining > 2.5
+        );
+        drivingTimer.classList.toggle(
+          "danger",
+          driving && raceState === "running" && checkpointRemaining <= 2.5
+        );
+        drivingHint.textContent = driving
+          ? raceState === "running"
+            ? strings.runningHint
+            : raceState === "failed"
+              ? strings.failedHint(Math.max(0, restartRemaining))
+              : strings.completeHint(Math.max(0, restartRemaining))
+          : focusedInteraction === "car"
+            ? strings.readyHint
+            : strings.idleHint;
       } else {
         drivingMode.classList.remove("active");
+        drivingCheckpoint.classList.remove("active");
+        drivingTimer.classList.remove("warning", "danger");
+      }
+
+      if (
+        drivingPopup.classList.contains("visible") &&
+        performance.now() >= drivingPopupHideAt
+      ) {
+        hideDrivingPopup();
       }
     },
   };

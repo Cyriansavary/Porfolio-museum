@@ -350,7 +350,8 @@ body::before {
 }
 
 #combatScore,
-#cookingScore {
+#cookingScore,
+#drivingSpeed {
   font-size: 28px;
   font-weight: 700;
   color: #87ffd1;
@@ -364,11 +365,17 @@ body::before {
 }
 
 #cookingHeld,
+#drivingRace,
 #cookingHint,
 #drivingHint {
   margin: 10px 0 0;
   color: rgba(225, 234, 255, 0.78);
   line-height: 1.55;
+}
+
+#drivingRace {
+  color: #ffd7a1;
+  font-weight: 600;
 }
 
 .cooking-meta {
@@ -434,6 +441,36 @@ body::before {
   color: #ffcf91;
   border-color: rgba(255, 192, 116, 0.28);
   background: rgba(255, 170, 72, 0.12);
+}
+
+#drivingCheckpoint.active {
+  color: #9af8d4;
+  border-color: rgba(122, 255, 210, 0.26);
+  background: rgba(47, 255, 186, 0.1);
+}
+
+#drivingTimer.warning {
+  color: #ffd59d;
+  border-color: rgba(255, 197, 111, 0.24);
+  background: rgba(255, 173, 71, 0.08);
+}
+
+#drivingTimer.danger {
+  color: #ffaaa4;
+  border-color: rgba(255, 116, 116, 0.32);
+  background: rgba(255, 96, 96, 0.12);
+}
+
+#drivingPopup.success.visible {
+  color: rgba(135, 255, 209, 0.98);
+}
+
+#drivingPopup.warning.visible {
+  color: rgba(255, 216, 149, 0.98);
+}
+
+#drivingPopup.error.visible {
+  color: rgba(255, 139, 139, 0.98);
 }
 
 .combat-popup {
@@ -816,7 +853,7 @@ body::before {
 .leaderboard-entry-metrics {
   margin-top: 14px;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
 }
 

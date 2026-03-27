@@ -2,6 +2,7 @@
 import "./style.css";
 import {
   CURRENT_TESTER_STORAGE_KEY,
+  DRIVING_RACE_SEGMENT_TIME,
   DRIVING_ZONE_DEPTH,
   DRIVING_ZONE_WIDTH,
   GROUND_CONTACT_EPSILON,
@@ -77,7 +78,6 @@ import {
 import { getRoomBasis } from "./scene/room-basis";
 import { createZoneLockBarrier as createZoneLockBarrierModule } from "./scene/zone-lock-barrier";
 import {
-  createDrivingCar,
   createDrivingSimSystem as createDrivingSimSystemModule,
   getDrivingRoadRects,
 } from "./zones/driving-system";
@@ -164,7 +164,11 @@ const drivingEyebrow = document.getElementById("drivingEyebrow") as HTMLParagrap
 const drivingTitle = document.getElementById("drivingTitle") as HTMLSpanElement;
 const drivingSpeed = document.getElementById("drivingSpeed") as HTMLSpanElement;
 const drivingMode = document.getElementById("drivingMode") as HTMLSpanElement;
+const drivingCheckpoint = document.getElementById("drivingCheckpoint") as HTMLSpanElement;
+const drivingTimer = document.getElementById("drivingTimer") as HTMLSpanElement;
+const drivingRace = document.getElementById("drivingRace") as HTMLParagraphElement;
 const drivingHint = document.getElementById("drivingHint") as HTMLParagraphElement;
+const drivingPopup = document.getElementById("drivingPopup") as HTMLDivElement;
 
 const projectVideoEyebrow = document.getElementById("projectVideoEyebrow") as HTMLParagraphElement;
 const projectKicker = document.getElementById("projectKicker") as HTMLParagraphElement;
@@ -375,6 +379,7 @@ function normalizeLeaderboardEntry(entry: unknown): LeaderboardEntry | null {
     totalScore: Math.max(0, Number(record.totalScore) || 0),
     slimeScore: Math.max(0, Number(record.slimeScore) || 0),
     cookingScore: Math.max(0, Number(record.cookingScore) || 0),
+    drivingScore: Math.max(0, Number(record.drivingScore) || 0),
     lastPlayedAt: Math.max(0, Number(record.lastPlayedAt) || 0),
   };
 }
@@ -489,6 +494,10 @@ function renderLeaderboard() {
                 <strong>${escapeHtml(ui.leaderboardMetricCooking)}</strong>
                 <span>${entry.cookingScore} pts</span>
               </div>
+              <div class="leaderboard-entry-metric">
+                <strong>${escapeHtml(ui.leaderboardMetricDriving)}</strong>
+                <span>${entry.drivingScore} pts</span>
+              </div>
             </div>
           </div>
         </article>
@@ -518,6 +527,7 @@ function setCurrentTesterLocal(name: string) {
       totalScore: 0,
       slimeScore: 0,
       cookingScore: 0,
+      drivingScore: 0,
       lastPlayedAt: Date.now(),
     };
     testerLeaderboard.push(newEntry);
@@ -566,8 +576,10 @@ function awardLeaderboardPointsLocal(category: LeaderboardCategory, delta: numbe
   activeTester.totalScore = Math.max(0, activeTester.totalScore + delta);
   if (category === "slime") {
     activeTester.slimeScore = Math.max(0, activeTester.slimeScore + delta);
-  } else {
+  } else if (category === "cooking") {
     activeTester.cookingScore = Math.max(0, activeTester.cookingScore + delta);
+  } else {
+    activeTester.drivingScore = Math.max(0, activeTester.drivingScore + delta);
   }
   activeTester.lastPlayedAt = Date.now();
   saveLeaderboardState();
@@ -681,6 +693,9 @@ function applyStaticLanguage() {
   drivingTitle.textContent = ui.drivingTitle;
   if (!isInDrivingSimZone && !isDrivingVehicle) {
     drivingMode.textContent = ui.drivingModeOnFoot;
+    drivingCheckpoint.textContent = ui.drivingRaceIdle;
+    drivingTimer.textContent = `${DRIVING_RACE_SEGMENT_TIME.toFixed(1)} s`;
+    drivingRace.textContent = `${ui.drivingRaceScore}: 0000`;
     drivingHint.textContent = ui.drivingHintDefault;
   }
   projectVideoEyebrow.textContent = ui.projectVideoEyebrow;
@@ -752,8 +767,8 @@ function syncCrosshairVisibility() {
 function getFreeRoamStatusMessage() {
   if (isPointerLocked && isDrivingVehicle) {
     return currentLanguage === "fr"
-      ? "Zone DrivingSim - ZQSD ou WASD pour conduire, Space pour freiner, E pour sortir du vehicule"
-      : "DrivingSim zone - ZQSD or WASD to drive, Space to brake, E to exit the vehicle";
+      ? "Zone DrivingSim - passe dans les checkpoints avant la fin du chrono, Space freine, E pour sortir du vehicule"
+      : "DrivingSim zone - drive through the checkpoints before the timer runs out, Space brakes, E exits the vehicle";
   }
 
   if (isPointerLocked && isInSlimeCombatZone) {
@@ -770,8 +785,8 @@ function getFreeRoamStatusMessage() {
 
   if (isPointerLocked && isInDrivingSimZone) {
     return currentLanguage === "fr"
-      ? "Zone DrivingSim - approche-toi de la voiture et clique ou appuie sur E pour prendre le volant"
-      : "DrivingSim zone - get close to the car and click or press E to take the wheel";
+      ? "Zone DrivingSim - approche-toi de la voiture et clique ou appuie sur E pour lancer la course"
+      : "DrivingSim zone - get close to the car and click or press E to launch the race";
   }
 
   return isPointerLocked
@@ -2688,69 +2703,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     glass.material = shelterGlassMaterial;
   }
 
-  for (const parked of [
-    {
-      name: "parkedWestSouth",
-      x: -15.6,
-      z: -18.2,
-      rot: yaw,
-      color: new BABYLON.Color3(0.14, 0.3, 0.62),
-      scale: 0.94,
-    },
-    {
-      name: "parkedEastSouth",
-      x: 15.6,
-      z: -18.2,
-      rot: yaw,
-      color: new BABYLON.Color3(0.66, 0.66, 0.7),
-      scale: 0.9,
-    },
-    {
-      name: "parkedWestMarket",
-      x: -15.2,
-      z: 1.8,
-      rot: yaw,
-      color: new BABYLON.Color3(0.3, 0.44, 0.26),
-      scale: 0.92,
-    },
-    {
-      name: "parkedEastMarket",
-      x: 15.2,
-      z: 1.8,
-      rot: yaw,
-      color: new BABYLON.Color3(0.64, 0.3, 0.18),
-      scale: 0.9,
-    },
-    {
-      name: "parkedNorthWest",
-      x: -24.1,
-      z: 30.2,
-      rot: yaw + Math.PI / 2,
-      color: new BABYLON.Color3(0.18, 0.46, 0.34),
-      scale: 0.92,
-    },
-    {
-      name: "parkedNorthEast",
-      x: 24.1,
-      z: 30.2,
-      rot: yaw - Math.PI / 2,
-      color: new BABYLON.Color3(0.42, 0.32, 0.62),
-      scale: 0.92,
-    },
-  ]) {
-    createDrivingCar(
-      scene,
-      project,
-      toWorld(parked.x, 0.02, parked.z),
-      parked.rot,
-      {
-        interactive: false,
-        scale: parked.scale,
-        bodyColor: parked.color,
-      }
-    );
-  }
-
   const startGateLeft = BABYLON.MeshBuilder.CreateBox(
     `${project.id}_startGateLeft`,
     { width: 0.18, height: 2.6, depth: 0.18 },
@@ -3581,8 +3533,13 @@ function createDrivingSimSystem(
     canvas,
     drivingHint,
     drivingHud,
+    drivingCheckpoint,
     drivingMode,
+    drivingPopup,
+    drivingRace,
     drivingSpeed,
+    drivingTimer,
+    awardLeaderboardPoints,
     getCurrentUiText,
     getFreeRoamStatusMessage,
     getIsPointerLocked: () => isPointerLocked,
