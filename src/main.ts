@@ -79,6 +79,7 @@ import { getRoomBasis } from "./scene/room-basis";
 import { createZoneLockBarrier as createZoneLockBarrierModule } from "./scene/zone-lock-barrier";
 import {
   createDrivingSimSystem as createDrivingSimSystemModule,
+  getDrivingRoadEllipses,
   getDrivingRoadRects,
 } from "./zones/driving-system";
 import {
@@ -2299,6 +2300,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   const wallThickness = 0.45;
   const entranceHalfWidth = 5.4;
   const roadRects = getDrivingRoadRects();
+  const roadEllipses = getDrivingRoadEllipses();
   const toWorld = (x: number, y: number, z: number) =>
     project.position
       .add(right.scale(x))
@@ -2458,7 +2460,8 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     prefix: string,
     centerX: number,
     centerZ: number,
-    radius: number,
+    radiusX: number,
+    radiusZ: number,
     startAngle: number,
     endAngle: number,
     count: number
@@ -2466,9 +2469,12 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     for (let index = 0; index < count; index += 1) {
       const t = count === 1 ? 0 : index / (count - 1);
       const angle = BABYLON.Scalar.Lerp(startAngle, endAngle, t);
-      const localX = centerX + Math.cos(angle) * radius;
-      const localZ = centerZ + Math.sin(angle) * radius;
-      const tangent = new BABYLON.Vector2(-Math.sin(angle), Math.cos(angle));
+      const localX = centerX + Math.cos(angle) * radiusX;
+      const localZ = centerZ + Math.sin(angle) * radiusZ;
+      const tangent = new BABYLON.Vector2(
+        -Math.sin(angle) * radiusX,
+        Math.cos(angle) * radiusZ
+      );
       createDrivingRoadStripe(
         scene,
         `${project.id}_${prefix}_${index}`,
@@ -2517,6 +2523,37 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     road.isPickable = false;
     road.material = asphaltMaterial;
     road.checkCollisions = true;
+  });
+  roadEllipses.forEach((ellipse) => {
+    const outerLoop = BABYLON.MeshBuilder.CreateCylinder(
+      `${project.id}_road_${ellipse.name}_outer`,
+      { diameter: 1, height: 0.03, tessellation: 64 },
+      scene
+    );
+    outerLoop.position = toWorld(ellipse.centerX, 0.095, ellipse.centerZ);
+    outerLoop.rotation.y = yaw;
+    outerLoop.scaling = new BABYLON.Vector3(ellipse.radiusX * 2, 1, ellipse.radiusZ * 2);
+    outerLoop.isPickable = false;
+    outerLoop.material = asphaltMaterial;
+    outerLoop.checkCollisions = true;
+
+    if (ellipse.innerRadiusX && ellipse.innerRadiusZ) {
+      const innerIsland = BABYLON.MeshBuilder.CreateCylinder(
+        `${project.id}_road_${ellipse.name}_inner`,
+        { diameter: 1, height: 0.14, tessellation: 56 },
+        scene
+      );
+      innerIsland.position = toWorld(ellipse.centerX, 0.11, ellipse.centerZ);
+      innerIsland.rotation.y = yaw;
+      innerIsland.scaling = new BABYLON.Vector3(
+        ellipse.innerRadiusX * 2,
+        1,
+        ellipse.innerRadiusZ * 2
+      );
+      innerIsland.isPickable = false;
+      innerIsland.material = plazaMaterial;
+      innerIsland.checkCollisions = true;
+    }
   });
 
   const perimeterPads = [
@@ -2583,7 +2620,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     { diameter: 2.4, height: 0.26, tessellation: 32 },
     scene
   );
-  fountainBase.position = toWorld(-3.2, 0.2, 31.2);
+  fountainBase.position = toWorld(0, 0.2, 2.2);
   fountainBase.scaling.z = 0.88;
   fountainBase.isPickable = false;
   fountainBase.material = plazaMaterial;
@@ -2594,7 +2631,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     { diameter: 0.42, height: 1.1, tessellation: 20 },
     scene
   );
-  fountainColumn.position = toWorld(-3.2, 0.74, 31.2);
+  fountainColumn.position = toWorld(0, 0.74, 2.2);
   fountainColumn.isPickable = false;
   fountainColumn.material = wallMaterial;
 
@@ -2603,7 +2640,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     { diameter: 0.38, segments: 10 },
     scene
   );
-  fountainTop.position = toWorld(-3.2, 1.36, 31.2);
+  fountainTop.position = toWorld(0, 1.36, 2.2);
   fountainTop.isPickable = false;
   fountainTop.material = createMaterial(
     scene,
@@ -2616,7 +2653,8 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   createStreetTree("treeWestPiazzaB", -10.1, 12.2, 0.8);
   createStreetTree("treeEastPiazzaA", 8.8, 10.1, 0.92);
   createStreetTree("treeEastPiazzaB", 10.6, 12.3, 0.8);
-  createStreetTree("treeRearPiazza", -5.1, 31.1, 0.95);
+  createStreetTree("treeCentralIslandA", -5.6, 3.6, 0.9);
+  createStreetTree("treeCentralIslandB", 5.2, 0.8, 0.85);
 
   const cafeMetalMaterial = createMaterial(
     scene,
@@ -2719,18 +2757,14 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   };
 
   addVerticalDashes("entryDashes", 0, -34.2, -25.2, 2.8, 1.22);
-  addVerticalDashes("mainDashes", 0, -20.2, 31.4, 3.2, 1.22);
-  addVerticalDashes("westDashes", -23.8, -20.2, 27.6, 3.2, 1.14);
-  addVerticalDashes("eastDashes", 23.8, -20.2, 27.6, 3.2, 1.14);
-  addHorizontalDashes("southStreetDashes", -17.6, -31.2, 31.2, 3.2, 1.2);
-  addHorizontalDashes("marketStreetDashes", 1.8, -31.2, 31.2, 3.2, 1.2);
-  addHorizontalDashes("northStreetDashes", 21.2, -31.2, 31.2, 3.2, 1.2);
-  addHorizontalDashes("westConnectorDashes", 11.8, -16.4, -6.8, 3, 1.02);
-  addHorizontalDashes("eastConnectorDashes", 11.8, 6.8, 16.4, 3, 1.02);
-  addArcDashes("southEastArc", 23.8, -17.8, 5.6, Math.PI, Math.PI * 0.5, 5);
-  addArcDashes("northEastArc", 23.8, 21.2, 5.6, -Math.PI * 0.5, -Math.PI, 5);
-  addArcDashes("northWestArc", -23.8, 21.2, 5.6, 0, -Math.PI * 0.5, 5);
-  addArcDashes("southWestArc", -23.8, -17.8, 5.6, Math.PI * 0.5, 0, 5);
+  addVerticalDashes("southApproachDashes", 0, -22.4, -15.6, 3, 1.12);
+  addVerticalDashes("westDashes", -23.8, -4.8, 22.8, 3.2, 1.14);
+  addVerticalDashes("eastDashes", 23.8, -4.8, 22.8, 3.2, 1.14);
+  addHorizontalDashes("northStreetDashes", 23.2, -14.4, 14.4, 3.2, 1.16);
+  addArcDashes("loopSouthEastArc", 0, 2.2, 14.7, 7.7, -Math.PI * 0.5, 0, 8);
+  addArcDashes("loopNorthEastArc", 0, 2.2, 14.7, 7.7, 0, Math.PI * 0.5, 8);
+  addArcDashes("loopNorthWestArc", 0, 2.2, 14.7, 7.7, Math.PI * 0.5, Math.PI, 8);
+  addArcDashes("loopSouthWestArc", 0, 2.2, 14.7, 7.7, Math.PI, Math.PI * 1.5, 8);
 
   createDrivingRoadStripe(
     scene,
@@ -2747,17 +2781,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     createDrivingRoadStripe(
       scene,
       `${project.id}_crosswalkSouth_${index}`,
-      toWorld(-3.2 + index * 0.9, 0.118, -10.1),
-      yaw,
-      0.52,
-      1.24,
-      crosswalkColor,
-      0.88
-    );
-    createDrivingRoadStripe(
-      scene,
-      `${project.id}_crosswalkMarket_${index}`,
-      toWorld(-3.2 + index * 0.9, 0.118, 9.6),
+      toWorld(-3.2 + index * 0.9, 0.118, -11.9),
       yaw,
       0.52,
       1.24,
