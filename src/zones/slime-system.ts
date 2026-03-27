@@ -3,6 +3,8 @@ import * as BABYLON from "babylonjs";
 import {
   PLAYER_HEIGHT,
   SLIME_ARENA_HALF_SIZE,
+  SLIME_DIFFICULTY_MAX_TIER,
+  SLIME_DIFFICULTY_STEP_SCORE,
   SLIME_ENEMY_CHASE_SPEED_MAX,
   SLIME_ENEMY_CHASE_SPEED_MIN,
   SLIME_ENEMY_FALL_GRAVITY,
@@ -199,6 +201,17 @@ export function createSlimeEnemySystem(
   let score = 0;
   let playerHitCount = 0;
   let locked = false;
+  let difficultyTier = 1;
+
+  const getComputedDifficultyTier = () =>
+    Math.min(
+      SLIME_DIFFICULTY_MAX_TIER,
+      1 + Math.floor(score / SLIME_DIFFICULTY_STEP_SCORE)
+    );
+  const getEnemyCap = () => SLIME_ENEMY_MAX + Math.max(0, difficultyTier - 1);
+  const getSpawnDelay = () =>
+    SLIME_ENEMY_SPAWN_INTERVAL *
+    Math.max(0.45, 1 - Math.max(0, difficultyTier - 1) * 0.08);
 
   function disposeEnemy(enemy: SlimeEnemy) {
     if (enemy.shadow.material && enemy.shadow.material !== shadowMaterial) {
@@ -259,6 +272,7 @@ export function createSlimeEnemySystem(
     );
 
     const radius = 0.34 + Math.random() * 0.16;
+    const speedFactor = 1 + Math.max(0, difficultyTier - 1) * 0.08;
     const baseScale = new BABYLON.Vector3(
       1.02 + Math.random() * 0.08,
       0.74 + Math.random() * 0.08,
@@ -324,9 +338,10 @@ export function createSlimeEnemySystem(
       velocityY: -1.2 - Math.random() * 1.4,
       state: "falling",
       moveSpeed:
-        SLIME_ENEMY_CHASE_SPEED_MIN +
-        Math.random() *
-          (SLIME_ENEMY_CHASE_SPEED_MAX - SLIME_ENEMY_CHASE_SPEED_MIN),
+        (SLIME_ENEMY_CHASE_SPEED_MIN +
+          Math.random() *
+            (SLIME_ENEMY_CHASE_SPEED_MAX - SLIME_ENEMY_CHASE_SPEED_MIN)) *
+        speedFactor,
       phase: Math.random() * Math.PI * 2,
       baseScale,
     });
@@ -406,6 +421,9 @@ export function createSlimeEnemySystem(
     getEnemyCount() {
       return enemies.length;
     },
+    getDifficultyTier() {
+      return difficultyTier;
+    },
     isLocked() {
       return locked;
     },
@@ -432,10 +450,20 @@ export function createSlimeEnemySystem(
         return;
       }
 
+      const nextDifficultyTier = getComputedDifficultyTier();
+      if (nextDifficultyTier !== difficultyTier) {
+        difficultyTier = nextDifficultyTier;
+        showCombatPopup(
+          languageState.currentLanguage === "fr"
+            ? `Menace niveau ${difficultyTier}`
+            : `Threat tier ${difficultyTier}`
+        );
+      }
+
       spawnTimer -= dt;
-      if (spawnTimer <= 0 && enemies.length < SLIME_ENEMY_MAX) {
+      if (spawnTimer <= 0 && enemies.length < getEnemyCap()) {
         spawnEnemy();
-        spawnTimer = SLIME_ENEMY_SPAWN_INTERVAL * (0.82 + Math.random() * 0.48);
+        spawnTimer = getSpawnDelay() * (0.82 + Math.random() * 0.48);
       }
 
       const playerLocal = toLocal(camera.position);

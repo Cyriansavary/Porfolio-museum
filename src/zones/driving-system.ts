@@ -4,11 +4,15 @@ import {
   DRIVING_ACCELERATION,
   DRIVING_BRAKE_DECELERATION,
   DRIVING_COAST_DECELERATION,
+  DRIVING_DIFFICULTY_MAX_TIER,
+  DRIVING_DIFFICULTY_STEP_CHECKPOINTS,
+  DRIVING_FAILURE_LIMIT,
   DRIVING_INTERACTION_DISTANCE,
   DRIVING_MAX_FORWARD_SPEED,
   DRIVING_RACE_CHECKPOINT_RADIUS,
   DRIVING_RACE_CHECKPOINT_SCORE,
   DRIVING_RACE_FINISH_BONUS,
+  DRIVING_RACE_MIN_SEGMENT_TIME,
   DRIVING_RACE_RESTART_DELAY,
   DRIVING_RACE_SEGMENT_TIME,
   DRIVING_MAX_REVERSE_SPEED,
@@ -31,6 +35,7 @@ import type {
   LeaderboardCategory,
   PlayerController,
   ProjectData,
+  ZoneLockBarrierHandle,
 } from "../core/types";
 import { createMaterial, enableCollisions } from "../scene/builders";
 import { lookAtTarget } from "../scene/camera-utils";
@@ -39,6 +44,16 @@ import { getRoomBasis } from "../scene/room-basis";
 export type DrivingSimSystemDeps = {
   awardLeaderboardPoints: (category: LeaderboardCategory, delta: number) => void;
   canvas: HTMLCanvasElement;
+  createZoneLockBarrier: (
+    scene: BABYLON.Scene,
+    name: string,
+    position: BABYLON.Vector3,
+    rotationY: number,
+    size: { width: number; height: number; depth: number },
+    color: BABYLON.Color3,
+    getTitle: () => string,
+    getSubtitle: () => string
+  ) => ZoneLockBarrierHandle;
   drivingCheckpoint: HTMLSpanElement;
   drivingHint: HTMLParagraphElement;
   drivingHud: HTMLDivElement;
@@ -82,7 +97,7 @@ type DrivingRaceCheckpoint = {
   z: number;
 };
 
-type DrivingRaceState = "idle" | "running" | "failed" | "complete";
+type DrivingRaceState = "idle" | "running" | "failed" | "complete" | "locked";
 
 const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
   { x: 0, z: -25.4 },
@@ -369,6 +384,7 @@ export function createDrivingSimSystem(
   const {
     awardLeaderboardPoints,
     canvas,
+    createZoneLockBarrier,
     drivingCheckpoint,
     drivingHint,
     drivingHud,
@@ -425,6 +441,20 @@ export function createDrivingSimSystem(
     project,
     toWorld(0, 0.02, -31.8),
     yaw + Math.PI
+  );
+  const entranceBarrier = createZoneLockBarrier(
+    scene,
+    `${project.id}_lockBarrier`,
+    toWorld(0, 1.42, -zoneHalfDepth + 1.98),
+    yaw,
+    { width: 6.1, height: 2.84, depth: 0.32 },
+    project.color,
+    () =>
+      languageState.currentLanguage === "fr" ? "CIRCUIT FERME" : "TRACK CLOSED",
+    () =>
+      languageState.currentLanguage === "fr"
+        ? "3 runs rates - acces bloque"
+        : "3 failed runs - area locked"
   );
   const checkpointRoot = new BABYLON.TransformNode(
     `${project.id}_raceCheckpointRoot`,
@@ -501,7 +531,22 @@ export function createDrivingSimSystem(
   let checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
   let runScore = 0;
   let restartRemaining = 0;
+  let totalCheckpointClears = 0;
+  let difficultyTier = 1;
+  let failedRuns = 0;
+  let locked = false;
   let drivingPopupHideAt = 0;
+
+  const getComputedDifficultyTier = () =>
+    Math.min(
+      DRIVING_DIFFICULTY_MAX_TIER,
+      1 + Math.floor(totalCheckpointClears / DRIVING_DIFFICULTY_STEP_CHECKPOINTS)
+    );
+  const getCurrentSegmentTimeLimit = () =>
+    Math.max(
+      DRIVING_RACE_MIN_SEGMENT_TIME,
+      DRIVING_RACE_SEGMENT_TIME - Math.max(0, difficultyTier - 1) * 0.8
+    );
 
   function getDrivingStrings() {
     const isFrench = languageState.currentLanguage === "fr";
@@ -510,6 +555,7 @@ export function createDrivingSimSystem(
       raceLive: isFrench ? "Course active" : "Race live",
       raceFailed: isFrench ? "Course perdue" : "Run failed",
       raceComplete: isFrench ? "Tour valide" : "Lap complete",
+      raceLocked: isFrench ? "Circuit ferme" : "Track closed",
       checkpointLabel: (index: number, total: number) =>
         isFrench ? `Checkpoint ${index}/${total}` : `Checkpoint ${index}/${total}`,
       nextHint: isFrench ? "8 checkpoints" : "8 checkpoints",
@@ -537,7 +583,13 @@ export function createDrivingSimSystem(
       finishPopup: isFrench
         ? `Tour valide +${DRIVING_RACE_FINISH_BONUS}`
         : `Lap complete +${DRIVING_RACE_FINISH_BONUS}`,
-      failPopup: isFrench ? "Temps depasse" : "Time up",
+      failPopup: (failedCount: number) =>
+        isFrench
+          ? `Temps depasse ${failedCount}/${DRIVING_FAILURE_LIMIT}`
+          : `Time up ${failedCount}/${DRIVING_FAILURE_LIMIT}`,
+      lockHint: isFrench
+        ? "Zone verrouillee apres 3 runs rates."
+        : "Area locked after 3 failed runs.",
     };
   }
 
@@ -563,9 +615,9 @@ export function createDrivingSimSystem(
   }
 
   function resetRace() {
-    raceState = "idle";
+    raceState = locked ? "locked" : "idle";
     activeCheckpointIndex = 0;
-    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    checkpointRemaining = getCurrentSegmentTimeLimit();
     restartRemaining = 0;
     runScore = 0;
     checkpointRoot.setEnabled(false);
@@ -573,14 +625,58 @@ export function createDrivingSimSystem(
   }
 
   function startRace() {
+    if (locked) {
+      raceState = "locked";
+      checkpointRoot.setEnabled(false);
+      return;
+    }
     raceState = "running";
     activeCheckpointIndex = 0;
-    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    checkpointRemaining = getCurrentSegmentTimeLimit();
     restartRemaining = 0;
     runScore = 0;
     positionCheckpoint(activeCheckpointIndex);
     checkpointRoot.setEnabled(true);
     hideDrivingPopup();
+  }
+
+  function lockTrack() {
+    if (locked) {
+      return;
+    }
+
+    locked = true;
+    raceState = "locked";
+    restartRemaining = 0;
+    checkpointRoot.setEnabled(false);
+    entranceBarrier.setEnabled(true);
+    hideDrivingPopup();
+    showDrivingPopup(getDrivingStrings().raceLocked, "error");
+    updateStatus(
+      languageState.currentLanguage === "fr"
+        ? "DrivingSim verrouille : 3 runs ont ete rates."
+        : "DrivingSim locked: 3 runs were failed."
+    );
+
+    if (driving) {
+      driving = false;
+      speed = 0;
+      steering = 0;
+      pressedKeys.clear();
+      playerController.syncPosition(
+        toWorld(0, PLAYER_HEIGHT, -zoneHalfDepth - 1.45)
+      );
+      camera.attachControl(canvas, true);
+      camera.fov = WALK_FOV;
+      lookAtTarget(
+        camera,
+        car.root.position
+          .add(getForward(car.root.rotation.y).scale(6.2))
+          .add(new BABYLON.Vector3(0, 0.9, 0))
+      );
+      setIsDrivingVehicle(false);
+      syncCrosshairVisibility();
+    }
   }
 
   function scheduleRaceRestart(nextState: Extract<DrivingRaceState, "failed" | "complete">) {
@@ -592,6 +688,8 @@ export function createDrivingSimSystem(
   function advanceCheckpoint() {
     const strings = getDrivingStrings();
     runScore += DRIVING_RACE_CHECKPOINT_SCORE;
+    totalCheckpointClears += 1;
+    difficultyTier = getComputedDifficultyTier();
     awardLeaderboardPoints("driving", DRIVING_RACE_CHECKPOINT_SCORE);
 
     const reachedIndex = activeCheckpointIndex + 1;
@@ -604,7 +702,7 @@ export function createDrivingSimSystem(
     }
 
     activeCheckpointIndex += 1;
-    checkpointRemaining = DRIVING_RACE_SEGMENT_TIME;
+    checkpointRemaining = getCurrentSegmentTimeLimit();
     positionCheckpoint(activeCheckpointIndex);
     showDrivingPopup(
       strings.checkpointPopup(reachedIndex, DRIVING_RACE_CHECKPOINTS.length),
@@ -613,7 +711,12 @@ export function createDrivingSimSystem(
   }
 
   function failRace() {
-    showDrivingPopup(getDrivingStrings().failPopup, "error");
+    failedRuns = Math.min(DRIVING_FAILURE_LIMIT, failedRuns + 1);
+    showDrivingPopup(getDrivingStrings().failPopup(failedRuns), "error");
+    if (failedRuns >= DRIVING_FAILURE_LIMIT) {
+      lockTrack();
+      return;
+    }
     scheduleRaceRestart("failed");
   }
 
@@ -720,6 +823,7 @@ export function createDrivingSimSystem(
       }
 
       if (
+        locked ||
         !isInsideZonePoint(camera.position) ||
         focusedInteraction !== "car" ||
         !getIsPointerLocked()
@@ -910,7 +1014,7 @@ export function createDrivingSimSystem(
           0,
           1 - Math.exp(-dt * 8)
         );
-        if (visible && getIsPointerLocked()) {
+        if (!locked && visible && getIsPointerLocked()) {
           const pick = scene.pickWithRay(
             camera.getForwardRay(DRIVING_INTERACTION_DISTANCE),
             (mesh) =>
@@ -952,6 +1056,8 @@ export function createDrivingSimSystem(
         const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
         car.interactionHalo.material.alpha = driving
           ? 0
+          : locked
+            ? 0.03
           : focusedInteraction === "car"
             ? 0.34 + pulse * 0.07
             : visible
@@ -959,25 +1065,31 @@ export function createDrivingSimSystem(
               : 0.06;
         car.interactionHalo.material.emissiveColor = driving
           ? BABYLON.Color3.Black()
+          : locked
+            ? project.color.scale(0.08)
           : project.color.scale(
               focusedInteraction === "car" ? 0.52 + pulse * 0.16 : 0.18
             );
       }
-      car.interactionHalo.setEnabled(!driving);
+      car.interactionHalo.setEnabled(!driving && !locked);
 
       drivingHud.classList.toggle("hidden", !visible);
       if (visible) {
         const strings = getDrivingStrings();
         const timerValue =
-          raceState === "running"
+          raceState === "locked"
+            ? 0
+            : raceState === "running"
             ? checkpointRemaining
             : restartRemaining > 0
               ? restartRemaining
-              : DRIVING_RACE_SEGMENT_TIME;
+              : getCurrentSegmentTimeLimit();
         drivingSpeed.textContent = `${Math.round(Math.abs(speed) * 3.6)
           .toString()
           .padStart(3, "0")} km/h`;
-        drivingMode.textContent = driving
+        drivingMode.textContent = locked
+          ? strings.raceLocked
+          : driving
           ? raceState === "running"
             ? strings.raceLive
             : raceState === "failed"
@@ -986,37 +1098,56 @@ export function createDrivingSimSystem(
           : focusedInteraction === "car"
             ? strings.vehicleReady
             : getCurrentUiText().drivingModeOnFoot;
-        drivingCheckpoint.textContent = driving
+        drivingCheckpoint.textContent = locked
+          ? languageState.currentLanguage === "fr"
+            ? `Echecs ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
+            : `Fails ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
+          : driving
           ? raceState === "running"
             ? strings.checkpointLabel(
                 activeCheckpointIndex + 1,
                 DRIVING_RACE_CHECKPOINTS.length
               )
-            : getCurrentUiText().drivingRaceIdle
+            : languageState.currentLanguage === "fr"
+              ? `Echecs ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
+              : `Fails ${failedRuns}/${DRIVING_FAILURE_LIMIT}`
           : focusedInteraction === "car"
-            ? strings.nextHint
+            ? `${strings.nextHint} | ${
+                languageState.currentLanguage === "fr"
+                  ? `niv ${difficultyTier}`
+                  : `lv ${difficultyTier}`
+              }`
             : getCurrentUiText().drivingRaceIdle;
-        drivingTimer.textContent = `${timerValue.toFixed(1)} s`;
+        drivingTimer.textContent =
+          locked || timerValue <= 0 ? "--.- s" : `${timerValue.toFixed(1)} s`;
         drivingRace.textContent = `${getCurrentUiText().drivingRaceScore}: ${runScore
           .toString()
-          .padStart(4, "0")}`;
-        drivingMode.classList.toggle("active", driving);
+          .padStart(4, "0")} | ${
+          languageState.currentLanguage === "fr" ? `niv ${difficultyTier}` : `lv ${difficultyTier}`
+        }`;
+        drivingMode.classList.toggle("active", driving && !locked);
         drivingCheckpoint.classList.toggle(
           "active",
-          driving && raceState === "running"
+          driving && raceState === "running" && !locked
         );
         drivingTimer.classList.toggle(
           "warning",
-          driving &&
+          !locked &&
+            driving &&
             raceState === "running" &&
             checkpointRemaining <= 5 &&
             checkpointRemaining > 2.5
         );
         drivingTimer.classList.toggle(
           "danger",
-          driving && raceState === "running" && checkpointRemaining <= 2.5
+          !locked &&
+            driving &&
+            raceState === "running" &&
+            checkpointRemaining <= 2.5
         );
-        drivingHint.textContent = driving
+        drivingHint.textContent = locked
+          ? strings.lockHint
+          : driving
           ? raceState === "running"
             ? strings.runningHint
             : raceState === "failed"

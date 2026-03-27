@@ -3534,6 +3534,7 @@ function createDrivingSimSystem(
   playerController: PlayerController
 ): DrivingSimSystem {
   return createDrivingSimSystemModule(scene, project, camera, playerController, {
+    createZoneLockBarrier,
     canvas,
     drivingHint,
     drivingHud,
@@ -4223,6 +4224,7 @@ function createScene() {
         .toString()
         .padStart(4, "0");
       const enemyCount = slimeEnemySystem.getEnemyCount();
+      const difficultyTier = slimeEnemySystem.getDifficultyTier();
       const hitCount = slimeEnemySystem.getPlayerHitCount();
       combatStatus.textContent = slimeEnemySystem.isLocked()
         ? currentLanguage === "fr"
@@ -4230,11 +4232,11 @@ function createScene() {
           : "Arena locked - 4 hits taken."
         : enemyCount > 0
           ? currentLanguage === "fr"
-            ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} impact${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} restant${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""}`
-            : `${enemyCount} active slime${enemyCount > 1 ? "s" : ""} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} hit${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} left`
+            ? `${enemyCount} slime${enemyCount > 1 ? "s" : ""} actif${enemyCount > 1 ? "s" : ""} - niveau ${difficultyTier} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} impact${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} restant${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""}`
+            : `${enemyCount} active slime${enemyCount > 1 ? "s" : ""} - tier ${difficultyTier} - ${SLIME_PLAYER_HIT_LIMIT - hitCount} hit${SLIME_PLAYER_HIT_LIMIT - hitCount > 1 ? "s" : ""} left`
           : currentLanguage === "fr"
-            ? "Zone securisee pour l'instant - les slimes repopent tant que tu restes dans l'arene"
-            : "Area secured for now - slimes keep respawning while you stay in the arena";
+            ? `Zone securisee pour l'instant - niveau ${difficultyTier} - les slimes repopent tant que tu restes dans l'arene`
+            : `Area secured for now - tier ${difficultyTier} - slimes keep respawning while you stay in the arena`;
     }
     if (combatPopup.classList.contains("visible") && performance.now() >= combatPopupHideAt) {
       combatPopup.classList.remove("visible");

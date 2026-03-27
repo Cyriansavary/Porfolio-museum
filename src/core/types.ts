@@ -114,6 +114,7 @@ export type SlimeEnemySystem = {
   isPlayerInsideArena: () => boolean;
   getScore: () => number;
   getEnemyCount: () => number;
+  getDifficultyTier: () => number;
   isLocked: () => boolean;
   getPlayerHitCount: () => number;
 };

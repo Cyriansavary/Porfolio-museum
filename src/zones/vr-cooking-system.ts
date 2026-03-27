@@ -5,10 +5,13 @@ import {
   VR_COOKING_COMBO_BONUS_STEP,
   VR_COOKING_COMBO_MAX_BONUS,
   VR_COOKING_COMBO_WINDOW,
+  VR_COOKING_DIFFICULTY_MAX_TIER,
+  VR_COOKING_DIFFICULTY_STEP_SERVES,
   VR_COOKING_FAILURE_LIMIT,
   VR_COOKING_GRILL_TIME,
   VR_COOKING_INITIAL_CLIENT_COUNT,
   VR_COOKING_INTERACTION_DISTANCE,
+  VR_COOKING_MIN_ORDER_TIME_LIMIT,
   VR_COOKING_ORDER_COUNT,
   VR_COOKING_ORDER_DANGER_TIME,
   VR_COOKING_ORDER_TIME_LIMIT,
@@ -153,6 +156,8 @@ export function createVRCookingSystem(
   let unlockedClientCount = VR_COOKING_INITIAL_CLIENT_COUNT;
   let cookingActiveElapsedMs = 0;
   let failedOrders = 0;
+  let servedOrders = 0;
+  let difficultyTier = 1;
   let locked = false;
 
   const entranceBarrier = createZoneLockBarrier(
@@ -378,14 +383,15 @@ export function createVRCookingSystem(
   const createOrder = (): VRCookingOrder => {
     const type = orderPool[Math.floor(Math.random() * orderPool.length)];
     const recipe = getRecipeInfo(type);
+    const timeLimitMs = getCurrentOrderTimeLimitMs();
     return {
       id: nextOrderId++,
       type,
       title: recipe.title,
       ingredients: recipe.ingredients,
       reward: recipe.reward,
-      timeLimitMs: VR_COOKING_ORDER_TIME_LIMIT * 1000,
-      remainingMs: VR_COOKING_ORDER_TIME_LIMIT * 1000,
+      timeLimitMs,
+      remainingMs: timeLimitMs,
     };
   };
 
@@ -409,6 +415,32 @@ export function createVRCookingSystem(
       VR_COOKING_COMBO_MAX_BONUS,
       Math.max(0, comboStreak - 1) * VR_COOKING_COMBO_BONUS_STEP
     );
+  const getComputedDifficultyTier = () =>
+    Math.min(
+      VR_COOKING_DIFFICULTY_MAX_TIER,
+      1 + Math.floor(servedOrders / VR_COOKING_DIFFICULTY_STEP_SERVES)
+    );
+  const getCurrentOrderTimeLimitMs = () =>
+    Math.max(
+      VR_COOKING_MIN_ORDER_TIME_LIMIT * 1000,
+      (VR_COOKING_ORDER_TIME_LIMIT - Math.max(0, difficultyTier - 1) * 5) * 1000
+    );
+  const updateDifficultyTier = () => {
+    const nextDifficultyTier = getComputedDifficultyTier();
+    if (nextDifficultyTier === difficultyTier) {
+      return;
+    }
+
+    difficultyTier = nextDifficultyTier;
+    orderBoardDirty = true;
+    showCookingPopup(
+      languageState.currentLanguage === "fr"
+        ? `Rush niveau ${difficultyTier}`
+        : `Rush tier ${difficultyTier}`,
+      "warning",
+      1200
+    );
+  };
 
   const registerStation = (
     id: VRCookingStationType,
@@ -800,6 +832,13 @@ export function createVRCookingSystem(
           ? "Deux postes clients actifs"
           : "Two customer slots active";
     boardContext.fillText(clientReleaseText, 76, 850);
+    boardContext.fillText(
+      languageState.currentLanguage === "fr"
+        ? `Niveau de rush ${difficultyTier}`
+        : `Rush tier ${difficultyTier}`,
+      760,
+      850
+    );
 
     boardTexture.update();
     orderBoardDirty = false;
@@ -837,6 +876,10 @@ export function createVRCookingSystem(
     const isDanger = hasUrgency && nextExpiry <= VR_COOKING_ORDER_DANGER_TIME * 1000;
     const comboActive = comboStreak > 1 && now < comboExpiresAt;
     const comboSeconds = Math.max(0, Math.ceil((comboExpiresAt - now) / 1000));
+    const tierLabel =
+      languageState.currentLanguage === "fr"
+        ? `Niv ${difficultyTier}`
+        : `Lv ${difficultyTier}`;
 
     cookingHud.classList.toggle("urgent", Boolean(isWarning));
     cookingHud.classList.toggle("danger", Boolean(isDanger));
@@ -845,22 +888,22 @@ export function createVRCookingSystem(
     cookingCombo.classList.toggle("active", comboActive);
 
     if (!hasUrgency) {
-      cookingRush.textContent = getCurrentUiText().cookingRushStable;
+      cookingRush.textContent = `${tierLabel} | ${getCurrentUiText().cookingRushStable}`;
     } else if (isDanger) {
       cookingRush.textContent =
         languageState.currentLanguage === "fr"
-          ? `Urgence ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
-          : `Urgency ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+          ? `${tierLabel} | Urgence ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `${tierLabel} | Urgency ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     } else if (isWarning) {
       cookingRush.textContent =
         languageState.currentLanguage === "fr"
-          ? `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
-          : `Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+          ? `${tierLabel} | Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `${tierLabel} | Rush ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     } else {
       cookingRush.textContent =
         languageState.currentLanguage === "fr"
-          ? `Prochaine commande ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
-          : `Next order ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
+          ? `${tierLabel} | Prochaine commande ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`
+          : `${tierLabel} | Next order ${Math.max(1, Math.ceil(nextExpiry / 1000))} s`;
     }
 
     cookingCombo.textContent = comboActive
@@ -2064,6 +2107,8 @@ export function createVRCookingSystem(
         const comboBonus = getComboBonus();
         const totalReward = servedOrder.reward + comboBonus;
         score += totalReward;
+        servedOrders += 1;
+        updateDifficultyTier();
         awardLeaderboardPoints("cooking", totalReward);
         inventory.burger = null;
         refillOrders();
