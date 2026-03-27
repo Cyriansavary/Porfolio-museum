@@ -1,18 +1,8 @@
-import * as BABYLON from "babylonjs";
+﻿import * as BABYLON from "babylonjs";
 import "./style.css";
 import {
   CURRENT_TESTER_STORAGE_KEY,
-  DRIVING_ACCELERATION,
-  DRIVING_BRAKE_DECELERATION,
-  DRIVING_COAST_DECELERATION,
-  DRIVING_INTERACTION_DISTANCE,
-  DRIVING_MAX_FORWARD_SPEED,
-  DRIVING_MAX_REVERSE_SPEED,
-  DRIVING_REVERSE_ACCELERATION,
-  DRIVING_STEER_RESPONSE,
-  DRIVING_TURN_RATE,
   DRIVING_ZONE_DEPTH,
-  DRIVING_ZONE_NAV_MARGIN,
   DRIVING_ZONE_WIDTH,
   GROUND_CONTACT_EPSILON,
   GROUND_RAY_CAST_LENGTH,
@@ -36,22 +26,9 @@ import {
   MAX_FALL_SPEED,
   PANEL_INTERACTION_DISTANCE,
   PLAYER_HEIGHT,
-  SLIME_ARENA_HALF_SIZE,
   SLIME_ARENA_SIZE,
-  SLIME_ENEMY_CHASE_SPEED_MAX,
-  SLIME_ENEMY_CHASE_SPEED_MIN,
-  SLIME_ENEMY_FALL_GRAVITY,
-  SLIME_ENEMY_MAX,
-  SLIME_ENEMY_SPAWN_INTERVAL,
-  SLIME_ENEMY_SPAWN_MAX_HEIGHT,
-  SLIME_ENEMY_SPAWN_MIN_HEIGHT,
-  SLIME_PLAYER_CONTACT_DISTANCE,
   SLIME_PLAYER_HIT_LIMIT,
   SLIME_TERRAIN_Y_OFFSET,
-  SLIME_WEAPON_BOLT_LIFETIME,
-  SLIME_WEAPON_COOLDOWN,
-  SLIME_WEAPON_RANGE,
-  SLIME_WEAPON_SCORE_PER_KILL,
   SPRINT_FOV_BOOST,
   SPRINT_SPEED,
   START_POSITION,
@@ -67,8 +44,6 @@ import type {
   CollisionCamera,
   CookingPopupTone,
   CreatedStand,
-  DrivingInteractionId,
-  DrivingInteractableMetadata,
   DrivingSimSystem,
   FloatingParticle,
   LeaderboardCategory,
@@ -78,7 +53,6 @@ import type {
   ProjectInteractionMetadata,
   ProjectInteractionMode,
   RockTextureSet,
-  SlimeEnemy,
   SlimeEnemySystem,
   SlimeRainDropMetadata,
   SlimeRainSystem,
@@ -86,6 +60,7 @@ import type {
   VRCookingSystem,
 } from "./core/types";
 import { projects, projectTextByLanguage } from "./content/projects";
+import { isEditableTarget } from "./core/dom-utils";
 import {
   createColumn,
   createDecorColumn,
@@ -96,7 +71,19 @@ import {
   createPathLight,
   enableCollisions,
 } from "./scene/builders";
+import { lookAtTarget } from "./scene/camera-utils";
 import { getRoomBasis } from "./scene/room-basis";
+import { createZoneLockBarrier as createZoneLockBarrierModule } from "./scene/zone-lock-barrier";
+import {
+  createDrivingCar,
+  createDrivingSimSystem as createDrivingSimSystemModule,
+  getDrivingRoadRects,
+} from "./zones/driving-system";
+import {
+  createSlimeEnemySystem as createSlimeEnemySystemModule,
+  createSlimeRainSystem as createSlimeRainSystemModule,
+  createSlimeWeaponSystem as createSlimeWeaponSystemModule,
+} from "./zones/slime-system";
 import { createVrCookingZone } from "./zones/vr-cooking-zone";
 import { createVRCookingSystem as createVRCookingSystemModule } from "./zones/vr-cooking-system";
 import { uiText } from "./content/ui-text";
@@ -224,14 +211,6 @@ function rgbString(color: BABYLON.Color3) {
   return `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
 }
 
-function moveToward(current: number, target: number, maxDelta: number) {
-  if (Math.abs(target - current) <= maxDelta) {
-    return target;
-  }
-
-  return current + Math.sign(target - current) * maxDelta;
-}
-
 function normalizeTesterName(value: string) {
   return value.replace(/\s+/g, " ").trim().slice(0, 24);
 }
@@ -248,22 +227,6 @@ function isLocalLeaderboardFallbackEnabled() {
   return (
     window.location.hostname === "localhost" ||
     window.location.hostname === "127.0.0.1"
-  );
-}
-
-function isEditableTarget(target: EventTarget | null) {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-
-  if (target.isContentEditable) {
-    return true;
-  }
-
-  return (
-    target instanceof HTMLInputElement ||
-    target instanceof HTMLTextAreaElement ||
-    target instanceof HTMLSelectElement
   );
 }
 
@@ -2426,34 +2389,6 @@ function createSciFiPod(
   }
   enableCollisions(...collidableMeshes);
 }
-function getDrivingRoadRects() {
-  return [
-    { name: "entrySouth", minX: -5.1, maxX: 5.1, minZ: -38, maxZ: -23.2 },
-    { name: "mainAvenue", minX: -5.8, maxX: 5.8, minZ: -23.2, maxZ: 35.6 },
-    { name: "westAvenue", minX: -29.4, maxX: -18.2, minZ: -23.2, maxZ: 30.8 },
-    { name: "eastAvenue", minX: 18.2, maxX: 29.4, minZ: -23.2, maxZ: 30.8 },
-    { name: "southStreet", minX: -35, maxX: 35, minZ: -23.2, maxZ: -12.2 },
-    { name: "marketStreet", minX: -35, maxX: 35, minZ: -3.6, maxZ: 7.2 },
-    { name: "northStreet", minX: -35, maxX: 35, minZ: 15.6, maxZ: 26.6 },
-    { name: "westConnector", minX: -19.2, maxX: -5.2, minZ: 6.2, maxZ: 17.8 },
-    { name: "eastConnector", minX: 5.2, maxX: 19.2, minZ: 6.2, maxZ: 17.8 },
-  ];
-}
-
-function isInsideDrivingRoad(
-  roadRects: ReturnType<typeof getDrivingRoadRects>,
-  x: number,
-  z: number
-) {
-  return roadRects.some(
-    (rect) =>
-      x >= rect.minX - DRIVING_ZONE_NAV_MARGIN &&
-      x <= rect.maxX + DRIVING_ZONE_NAV_MARGIN &&
-      z >= rect.minZ - DRIVING_ZONE_NAV_MARGIN &&
-      z <= rect.maxZ + DRIVING_ZONE_NAV_MARGIN
-  );
-}
-
 function createDrivingRoadStripe(
   scene: BABYLON.Scene,
   name: string,
@@ -2640,255 +2575,6 @@ function createDrivingStreetLamp(
   light.diffuse = new BABYLON.Color3(1, 0.82, 0.6);
   light.intensity = 0.46;
   light.range = 7.5;
-}
-
-function createDrivingCar(
-  scene: BABYLON.Scene,
-  project: ProjectData,
-  position: BABYLON.Vector3,
-  rotationY: number,
-  options?: {
-    bodyColor?: BABYLON.Color3;
-    interactive?: boolean;
-    scale?: number;
-  }
-) {
-  const bodyColor =
-    options?.bodyColor ?? new BABYLON.Color3(0.64, 0.12, 0.12);
-  const interactive = options?.interactive ?? true;
-  const root = new BABYLON.TransformNode(`${project.id}_carRoot`, scene);
-  root.position = position.clone();
-  root.rotation.y = rotationY;
-  if (options?.scale) {
-    root.scaling = new BABYLON.Vector3(options.scale, options.scale, options.scale);
-  }
-
-  const bodyMaterial = createMaterial(
-    scene,
-    `${project.id}_carBodyMat`,
-    bodyColor,
-    project.color.scale(0.2)
-  );
-  bodyMaterial.specularColor = new BABYLON.Color3(0.34, 0.34, 0.36);
-  bodyMaterial.specularPower = 78;
-
-  const trimMaterial = createMaterial(
-    scene,
-    `${project.id}_carTrimMat`,
-    new BABYLON.Color3(0.08, 0.09, 0.1),
-    new BABYLON.Color3(0.01, 0.01, 0.012)
-  );
-  const glassMaterial = createMaterial(
-    scene,
-    `${project.id}_carGlassMat`,
-    new BABYLON.Color3(0.16, 0.22, 0.28),
-    project.color.scale(0.12),
-    0.9
-  );
-  glassMaterial.specularColor = new BABYLON.Color3(0.26, 0.3, 0.34);
-
-  const chassis = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carChassis`,
-    { width: 1.92, height: 0.46, depth: 4.2 },
-    scene
-  );
-  chassis.parent = root;
-  chassis.position.y = 0.58;
-  chassis.isPickable = false;
-  chassis.material = bodyMaterial;
-
-  const cabin = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carCabin`,
-    { width: 1.54, height: 0.62, depth: 1.96 },
-    scene
-  );
-  cabin.parent = root;
-  cabin.position = new BABYLON.Vector3(0, 1.02, -0.14);
-  cabin.isPickable = false;
-  cabin.material = glassMaterial;
-
-  const hood = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carHood`,
-    { width: 1.78, height: 0.18, depth: 1.18 },
-    scene
-  );
-  hood.parent = root;
-  hood.position = new BABYLON.Vector3(0, 0.77, 1.26);
-  hood.isPickable = false;
-  hood.material = bodyMaterial;
-
-  const trunk = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carTrunk`,
-    { width: 1.72, height: 0.14, depth: 0.92 },
-    scene
-  );
-  trunk.parent = root;
-  trunk.position = new BABYLON.Vector3(0, 0.74, -1.58);
-  trunk.isPickable = false;
-  trunk.material = bodyMaterial;
-
-  const frontBumper = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carBumperFront`,
-    { width: 1.86, height: 0.18, depth: 0.16 },
-    scene
-  );
-  frontBumper.parent = root;
-  frontBumper.position = new BABYLON.Vector3(0, 0.42, 2.08);
-  frontBumper.isPickable = false;
-  frontBumper.material = trimMaterial;
-
-  const rearBumper = frontBumper.clone(`${project.id}_carBumperRear`);
-  rearBumper.parent = root;
-  rearBumper.position.z = -2.08;
-
-  const dashboard = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carDashboard`,
-    { width: 1.34, height: 0.18, depth: 0.42 },
-    scene
-  );
-  dashboard.parent = root;
-  dashboard.position = new BABYLON.Vector3(0, 1.07, 0.62);
-  dashboard.isPickable = false;
-  dashboard.material = trimMaterial;
-
-  const steeringWheel = BABYLON.MeshBuilder.CreateTorus(
-    `${project.id}_steeringWheel`,
-    { diameter: 0.38, thickness: 0.04, tessellation: 22 },
-    scene
-  );
-  steeringWheel.parent = root;
-  steeringWheel.position = new BABYLON.Vector3(-0.32, 0.98, 0.42);
-  steeringWheel.rotation.x = Math.PI / 2.8;
-  steeringWheel.rotation.z = -0.18;
-  steeringWheel.isPickable = false;
-  steeringWheel.material = trimMaterial;
-
-  const cockpitAnchor = new BABYLON.TransformNode(
-    `${project.id}_carCockpitAnchor`,
-    scene
-  );
-  cockpitAnchor.parent = root;
-  cockpitAnchor.position = new BABYLON.Vector3(-0.24, 1.08, 0.54);
-
-  for (const side of [-1, 1]) {
-    const headlight = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_headlight_${side}`,
-      { width: 0.34, height: 0.1, depth: 0.08 },
-      scene
-    );
-    headlight.parent = root;
-    headlight.position = new BABYLON.Vector3(0.58 * side, 0.68, 2.02);
-    headlight.isPickable = false;
-    headlight.material = createMaterial(
-      scene,
-      `${project.id}_headlightMat_${side}`,
-      new BABYLON.Color3(0.96, 0.94, 0.88),
-      new BABYLON.Color3(0.28, 0.24, 0.16)
-    );
-
-    const taillight = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_taillight_${side}`,
-      { width: 0.3, height: 0.1, depth: 0.08 },
-      scene
-    );
-    taillight.parent = root;
-    taillight.position = new BABYLON.Vector3(0.58 * side, 0.66, -2.02);
-    taillight.isPickable = false;
-    taillight.material = createMaterial(
-      scene,
-      `${project.id}_taillightMat_${side}`,
-      new BABYLON.Color3(0.72, 0.12, 0.08),
-      new BABYLON.Color3(0.24, 0.04, 0.02)
-    );
-  }
-
-  const wheelMaterial = createMaterial(
-    scene,
-    `${project.id}_wheelMat`,
-    new BABYLON.Color3(0.08, 0.08, 0.09),
-    new BABYLON.Color3(0.008, 0.008, 0.01)
-  );
-
-  const wheels: BABYLON.Mesh[] = [];
-  const steeringPivots: BABYLON.TransformNode[] = [];
-  for (const axle of [
-    { z: 1.18, steer: true },
-    { z: -1.24, steer: false },
-  ]) {
-    for (const side of [-1, 1]) {
-      const pivot = new BABYLON.TransformNode(
-        `${project.id}_wheelPivot_${axle.z}_${side}`,
-        scene
-      );
-      pivot.parent = root;
-      pivot.position = new BABYLON.Vector3(1.06 * side, 0.38, axle.z);
-      if (axle.steer) {
-        steeringPivots.push(pivot);
-      }
-
-      const wheel = BABYLON.MeshBuilder.CreateCylinder(
-        `${project.id}_wheel_${axle.z}_${side}`,
-        { diameter: 0.72, height: 0.34, tessellation: 18 },
-        scene
-      );
-      wheel.parent = pivot;
-      wheel.rotation.z = Math.PI / 2;
-      wheel.isPickable = false;
-      wheel.material = wheelMaterial;
-      wheels.push(wheel);
-    }
-  }
-
-  const interactionMesh = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_carInteraction`,
-    { width: 2.65, height: 1.55, depth: 4.8 },
-    scene
-  );
-  interactionMesh.parent = root;
-  interactionMesh.position = new BABYLON.Vector3(0, 0.94, 0);
-  interactionMesh.isPickable = interactive;
-  interactionMesh.material = createMaterial(
-    scene,
-    `${project.id}_carInteractionMat`,
-    project.color.scale(0.1),
-    project.color.scale(0.22),
-    interactive ? 0.001 : 0
-  );
-  interactionMesh.metadata = {
-    drivingInteractableId: "car",
-  } satisfies DrivingInteractableMetadata;
-  interactionMesh.setEnabled(interactive);
-
-  const interactionHalo = BABYLON.MeshBuilder.CreateTorus(
-    `${project.id}_carHalo`,
-    { diameter: 3.1, thickness: 0.08, tessellation: 36 },
-    scene
-  );
-  interactionHalo.parent = root;
-  interactionHalo.position.y = 0.08;
-  interactionHalo.rotation.x = Math.PI / 2;
-  interactionHalo.isPickable = false;
-  interactionHalo.material = createMaterial(
-    scene,
-    `${project.id}_carHaloMat`,
-    project.color.scale(0.2),
-    project.color.scale(0.36),
-    interactive ? 0.14 : 0
-  );
-  interactionHalo.setEnabled(interactive);
-
-  enableCollisions(chassis, cabin, hood, trunk, frontBumper, rearBumper);
-
-  return {
-    root,
-    wheels,
-    steeringPivots,
-    interactionMesh,
-    interactionHalo,
-    chassis,
-    cockpitAnchor,
-    steeringWheel,
-  };
 }
 
 function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
@@ -4040,58 +3726,7 @@ function createSlimeRainSystem(
   scene: BABYLON.Scene,
   project: ProjectData
 ): SlimeRainSystem {
-  const { right, back } = getRoomBasis(project);
-  const arenaHalfSize = 15.6;
-  const toWorld = (x: number, y: number, z: number) =>
-    project.position
-      .add(right.scale(x))
-      .add(back.scale(z))
-      .add(new BABYLON.Vector3(0, y, 0));
-
-  const rainSource = BABYLON.MeshBuilder.CreateCylinder(
-    `${project.id}_rainSource`,
-    { diameter: 0.01, height: 1.3, tessellation: 5 },
-    scene
-  );
-  rainSource.isVisible = false;
-  rainSource.isPickable = false;
-  rainSource.material = createMaterial(
-    scene,
-    `${project.id}_rainMat`,
-    new BABYLON.Color3(0.76, 0.8, 0.86),
-    new BABYLON.Color3(0.05, 0.06, 0.07),
-    0.12
-  );
-
-  const lines: BABYLON.InstancedMesh[] = [];
-  const respawnLine = (line: BABYLON.InstancedMesh) => {
-    const localX = (Math.random() - 0.5) * arenaHalfSize * 2.04;
-    const localZ = (Math.random() - 0.5) * arenaHalfSize * 2.04;
-    const minY = 0.45;
-    const startY = 5.2 + Math.random() * 4.6;
-    const wind = right
-      .scale(-0.02 - Math.random() * 0.014)
-      .add(back.scale(0.004 + Math.random() * 0.004));
-
-    line.position.copyFrom(toWorld(localX, startY, localZ));
-    line.rotation.x = -0.04;
-    line.rotation.z = 0.12;
-    line.metadata = {
-      assetType: "slimeRainLine",
-      minY,
-      speed: 0.24 + Math.random() * 0.16,
-      wind,
-    } satisfies SlimeRainDropMetadata;
-  };
-
-  for (let index = 0; index < 220; index += 1) {
-    const line = rainSource.createInstance(`${project.id}_rain_${index}`);
-    line.isPickable = false;
-    respawnLine(line);
-    lines.push(line);
-  }
-
-  return { lines, respawnLine };
+  return createSlimeRainSystemModule(scene, project);
 }
 
 function createZoneLockBarrier(
@@ -4104,76 +3739,20 @@ function createZoneLockBarrier(
   getTitle: () => string,
   getSubtitle: () => string
 ) {
-  const root = new BABYLON.TransformNode(`${name}_root`, scene);
-  root.position.copyFrom(position);
-  root.rotation.y = rotationY;
-
-  const barrier = BABYLON.MeshBuilder.CreateBox(
+  return createZoneLockBarrierModule(
+    scene,
     name,
+    position,
+    rotationY,
     size,
-    scene
+    color,
+    getTitle,
+    getSubtitle,
+    {
+      registerLocaleRefresher,
+      rgbString,
+    }
   );
-  barrier.parent = root;
-  barrier.isPickable = false;
-  barrier.checkCollisions = true;
-  const barrierMaterial = createMaterial(
-    scene,
-    `${name}_mat`,
-    color.scale(0.2),
-    color.scale(0.34),
-    0.78
-  );
-  barrierMaterial.disableLighting = true;
-  barrier.material = barrierMaterial;
-
-  const labelTexture = new BABYLON.DynamicTexture(
-    `${name}_labelTexture`,
-    { width: 768, height: 196 },
-    scene,
-    true
-  );
-  labelTexture.hasAlpha = true;
-  const labelContext = labelTexture.getContext() as CanvasRenderingContext2D;
-  const drawLabel = () => {
-    labelContext.clearRect(0, 0, 768, 196);
-    labelContext.fillStyle = "rgba(8, 12, 18, 0.88)";
-    labelContext.fillRect(12, 12, 744, 172);
-    labelContext.strokeStyle = rgbString(color);
-    labelContext.lineWidth = 3;
-    labelContext.strokeRect(12, 12, 744, 172);
-    labelContext.fillStyle = "rgba(244, 247, 255, 0.96)";
-    labelContext.font = "700 54px Segoe UI";
-    labelContext.textAlign = "center";
-    labelContext.textBaseline = "middle";
-    labelContext.fillText(getTitle(), 384, 76);
-    labelContext.fillStyle = "rgba(210, 224, 244, 0.88)";
-    labelContext.font = "500 26px Segoe UI";
-    labelContext.fillText(getSubtitle(), 384, 132);
-    labelTexture.update();
-  };
-  registerLocaleRefresher(drawLabel);
-  drawLabel();
-
-  const labelMaterial = new BABYLON.StandardMaterial(`${name}_labelMat`, scene);
-  labelMaterial.diffuseTexture = labelTexture;
-  labelMaterial.emissiveTexture = labelTexture;
-  labelMaterial.opacityTexture = labelTexture;
-  labelMaterial.disableLighting = true;
-  labelMaterial.backFaceCulling = false;
-
-  const label = BABYLON.MeshBuilder.CreatePlane(
-    `${name}_label`,
-    { width: Math.max(2.8, size.width * 0.72), height: 0.72, sideOrientation: BABYLON.Mesh.DOUBLESIDE },
-    scene
-  );
-  label.parent = root;
-  label.position = new BABYLON.Vector3(0, size.height * 0.5 + 0.46, -size.depth * 0.5 - 0.03);
-  label.rotation.y = Math.PI;
-  label.isPickable = false;
-  label.material = labelMaterial;
-
-  root.setEnabled(false);
-  return root;
 }
 
 function createSlimeEnemySystem(
@@ -4182,393 +3761,19 @@ function createSlimeEnemySystem(
   camera: BABYLON.UniversalCamera,
   playerController: PlayerController
 ): SlimeEnemySystem {
-  const { right, back, yaw } = getRoomBasis(project);
-  const toWorld = (x: number, y: number, z: number) =>
-    project.position
-      .add(right.scale(x))
-      .add(back.scale(z))
-      .add(new BABYLON.Vector3(0, y, 0));
-  const toLocal = (worldPosition: BABYLON.Vector3) => {
-    const offset = worldPosition.subtract(project.position);
-    return new BABYLON.Vector3(
-      BABYLON.Vector3.Dot(offset, right),
-      offset.y,
-      BABYLON.Vector3.Dot(offset, back)
-    );
-  };
-  const getGroundHeight = (localX: number, localZ: number) =>
-    sampleSlimeArenaHeight(localX, localZ) + SLIME_TERRAIN_Y_OFFSET;
-  const isInsideArena = (worldPosition: BABYLON.Vector3, margin = 0.8) => {
-    const local = toLocal(worldPosition);
-    return (
-      Math.abs(local.x) <= SLIME_ARENA_HALF_SIZE - margin &&
-      local.z >= -SLIME_ARENA_HALF_SIZE + margin &&
-      local.z <= SLIME_ARENA_HALF_SIZE - margin
-    );
-  };
-
-  const bodyMaterial = createMaterial(
-    scene,
-    `${project.id}_enemyBodyMat`,
-    new BABYLON.Color3(0.08, 0.19, 0.1),
-    new BABYLON.Color3(0.12, 0.58, 0.22),
-    0.96
-  );
-  bodyMaterial.specularColor = new BABYLON.Color3(0.96, 1, 0.98);
-  bodyMaterial.specularPower = 188;
-
-  const shellMaterial = createMaterial(
-    scene,
-    `${project.id}_enemyShellMat`,
-    new BABYLON.Color3(0.12, 0.28, 0.12),
-    new BABYLON.Color3(0.12, 0.78, 0.26),
-    0.24
-  );
-
-  const shadowMaterial = createMaterial(
-    scene,
-    `${project.id}_enemyShadowMat`,
-    new BABYLON.Color3(0.05, 0.11, 0.06),
-    new BABYLON.Color3(0.03, 0.12, 0.06),
-    0.16
-  );
-
-  const entranceBarrier = createZoneLockBarrier(
-    scene,
-    `${project.id}_lockBarrier`,
-    toWorld(0, 1.42, -SLIME_ARENA_HALF_SIZE + 1.98),
-    yaw,
-    { width: 6.1, height: 2.84, depth: 0.32 },
-    project.color,
-    () => (currentLanguage === "fr" ? "QUARANTAINE" : "QUARANTINED"),
-    () =>
-      currentLanguage === "fr"
-        ? "4 impacts subis - acces bloque"
-        : "4 hits taken - area locked"
-  );
-
-  const enemies: SlimeEnemy[] = [];
-  let spawnTimer = 0;
-  let score = 0;
-  let playerHitCount = 0;
-  let locked = false;
-
-  function disposeEnemy(enemy: SlimeEnemy) {
-    if (
-      enemy.shadow.material &&
-      enemy.shadow.material !== shadowMaterial
-    ) {
-      enemy.shadow.material.dispose();
-    }
-    enemy.body.dispose();
-    enemy.shell.dispose();
-    enemy.shadow.dispose();
-    enemy.root.dispose();
-  }
-
-  function disposeAll() {
-    while (enemies.length > 0) {
-      const enemy = enemies.pop();
-      if (enemy) {
-        disposeEnemy(enemy);
-      }
-    }
-    spawnTimer = 0;
-  }
-
-  function lockArena() {
-    if (locked) {
-      return;
-    }
-
-    locked = true;
-    entranceBarrier.setEnabled(true);
-    disposeAll();
-    showCombatPopup(currentLanguage === "fr" ? "Arene perdue" : "Arena failed");
-    updateStatus(
-      currentLanguage === "fr"
-        ? "Survivor Slime verrouille : 4 slimes t'ont touche."
-        : "Survivor Slime locked: 4 slimes reached you."
-    );
-    playerController.syncPosition(
-      toWorld(0, PLAYER_HEIGHT, -SLIME_ARENA_HALF_SIZE - 1.8)
-    );
-  }
-
-  function spawnEnemy() {
-    const playerLocal = toLocal(camera.position);
-    let localX = 0;
-    let localZ = 0;
-    let attempts = 0;
-
-    do {
-      localX = (Math.random() - 0.5) * (SLIME_ARENA_HALF_SIZE - 1.2) * 2;
-      localZ = (Math.random() - 0.5) * (SLIME_ARENA_HALF_SIZE - 1.8) * 2;
-      attempts += 1;
-    } while (
-      attempts < 10 &&
-      Math.sqrt(
-        Math.pow(localX - playerLocal.x, 2) + Math.pow(localZ - playerLocal.z, 2)
-      ) < 5.5
-    );
-
-    const radius = 0.34 + Math.random() * 0.16;
-    const baseScale = new BABYLON.Vector3(
-      1.02 + Math.random() * 0.08,
-      0.74 + Math.random() * 0.08,
-      1.0 + Math.random() * 0.08
-    );
-    const groundY = getGroundHeight(localX, localZ);
-    const root = new BABYLON.TransformNode(
-      `${project.id}_enemyRoot_${performance.now().toFixed(3)}_${enemies.length}`,
-      scene
-    );
-    root.position = toWorld(
-      localX,
-      groundY + SLIME_ENEMY_SPAWN_MIN_HEIGHT + Math.random() * (SLIME_ENEMY_SPAWN_MAX_HEIGHT - SLIME_ENEMY_SPAWN_MIN_HEIGHT),
-      localZ
-    );
-
-    const body = BABYLON.MeshBuilder.CreateSphere(
-      `${root.name}_body`,
-      { diameter: radius * 2, segments: 20 },
-      scene
-    );
-    body.parent = root;
-    body.position.y = radius * baseScale.y;
-    body.scaling = baseScale.clone();
-    body.isPickable = true;
-    body.metadata = { assetType: "slimeEnemyBody" };
-    body.material = bodyMaterial;
-
-    const shell = BABYLON.MeshBuilder.CreateSphere(
-      `${root.name}_shell`,
-      { diameter: radius * 2.1, segments: 18 },
-      scene
-    );
-    shell.parent = root;
-    shell.position.y = body.position.y + radius * 0.04;
-    shell.scaling = baseScale.multiply(new BABYLON.Vector3(1.05, 0.94, 1.05));
-    shell.isPickable = false;
-    shell.material = shellMaterial;
-
-    const shadow = BABYLON.MeshBuilder.CreateDisc(
-      `${root.name}_shadow`,
-      { radius: radius * 1.12, tessellation: 34 },
-      scene
-    );
-    shadow.position = toWorld(localX, groundY + 0.02, localZ);
-    shadow.rotation.x = Math.PI / 2;
-    shadow.isPickable = false;
-    shadow.material =
-      shadowMaterial.clone(`${root.name}_shadowMat`) ?? shadowMaterial;
-
-    enemies.push({
-      root,
-      body,
-      shell,
-      shadow,
-      localX,
-      localZ,
-      radius,
-      groundY,
-      velocityY: -1.2 - Math.random() * 1.4,
-      state: "falling",
-      moveSpeed:
-        SLIME_ENEMY_CHASE_SPEED_MIN +
-        Math.random() * (SLIME_ENEMY_CHASE_SPEED_MAX - SLIME_ENEMY_CHASE_SPEED_MIN),
-      phase: Math.random() * Math.PI * 2,
-      baseScale,
-    });
-  }
-
-  return {
-    disposeAll,
-    shoot(origin, direction) {
-      const normalizedDirection = direction.clone();
-      if (normalizedDirection.lengthSquared() < 0.0001) {
-        normalizedDirection.copyFrom(camera.getForwardRay(SLIME_WEAPON_RANGE).direction);
-      }
-      normalizedDirection.normalize();
-
-      const ray = new BABYLON.Ray(origin.clone(), normalizedDirection, SLIME_WEAPON_RANGE);
-      const enemyPick = scene.pickWithRay(
-        ray,
-        (mesh) => enemies.some((enemy) => enemy.body === mesh)
-      );
-      const worldPick = scene.pickWithRay(
-        ray,
-        (mesh) => mesh.checkCollisions && mesh.isEnabled()
-      );
-
-      const enemyDistance = enemyPick?.hit
-        ? enemyPick.distance
-        : Number.POSITIVE_INFINITY;
-      const worldDistance = worldPick?.hit
-        ? worldPick.distance
-        : Number.POSITIVE_INFINITY;
-
-      let targetPoint = origin.add(normalizedDirection.scale(SLIME_WEAPON_RANGE));
-      let scoreDelta = 0;
-      let hit = false;
-
-      if (
-        enemyPick?.hit &&
-        enemyPick.pickedPoint &&
-        enemyDistance <= worldDistance + 0.02
-      ) {
-        targetPoint = enemyPick.pickedPoint.clone();
-        const enemy = enemies.find((entry) => entry.body === enemyPick.pickedMesh);
-        if (enemy) {
-          disposeEnemy(enemy);
-          const enemyIndex = enemies.indexOf(enemy);
-          if (enemyIndex >= 0) {
-            enemies.splice(enemyIndex, 1);
-          }
-          scoreDelta = SLIME_WEAPON_SCORE_PER_KILL;
-          score += scoreDelta;
-          awardLeaderboardPoints("slime", scoreDelta);
-          hit = true;
-        }
-      } else if (worldPick?.hit && worldPick.pickedPoint) {
-        targetPoint = worldPick.pickedPoint.clone();
-      }
-
-      return {
-        targetPoint,
-        hit,
-        scoreDelta,
-        totalScore: score,
-      };
+  return createSlimeEnemySystemModule(scene, project, camera, playerController, {
+    awardLeaderboardPoints,
+    createZoneLockBarrier,
+    getGroundHeight: (localX: number, localZ: number) =>
+      sampleSlimeArenaHeight(localX, localZ) + SLIME_TERRAIN_Y_OFFSET,
+    languageState: {
+      get currentLanguage() {
+        return currentLanguage;
+      },
     },
-    isPlayerInsideArena() {
-      return isInsideArena(camera.position);
-    },
-    getScore() {
-      return score;
-    },
-    getEnemyCount() {
-      return enemies.length;
-    },
-    isLocked() {
-      return locked;
-    },
-    getPlayerHitCount() {
-      return playerHitCount;
-    },
-    update() {
-      const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
-      if (dt <= 0) {
-        return;
-      }
-
-      if (locked) {
-        if (enemies.length > 0) {
-          disposeAll();
-        }
-        return;
-      }
-
-      if (!isInsideArena(camera.position)) {
-        if (enemies.length > 0) {
-          disposeAll();
-        }
-        return;
-      }
-
-      spawnTimer -= dt;
-      if (spawnTimer <= 0 && enemies.length < SLIME_ENEMY_MAX) {
-        spawnEnemy();
-        spawnTimer = SLIME_ENEMY_SPAWN_INTERVAL * (0.82 + Math.random() * 0.48);
-      }
-
-      const playerLocal = toLocal(camera.position);
-      for (const enemy of enemies) {
-        enemy.groundY = getGroundHeight(enemy.localX, enemy.localZ);
-
-        if (enemy.state === "falling") {
-          enemy.velocityY -= SLIME_ENEMY_FALL_GRAVITY * dt;
-          enemy.root.position.y += enemy.velocityY * dt;
-          if (enemy.root.position.y <= enemy.groundY) {
-            enemy.root.position.y = enemy.groundY;
-            enemy.velocityY = 0;
-            enemy.state = "chasing";
-          }
-        } else {
-          const toPlayerX = playerLocal.x - enemy.localX;
-          const toPlayerZ = playerLocal.z - enemy.localZ;
-          const distance = Math.sqrt(toPlayerX * toPlayerX + toPlayerZ * toPlayerZ);
-          if (distance <= SLIME_PLAYER_CONTACT_DISTANCE) {
-            playerHitCount += 1;
-            showCombatPopup(
-              currentLanguage === "fr"
-                ? `Impact ${playerHitCount}/${SLIME_PLAYER_HIT_LIMIT}`
-                : `Hit ${playerHitCount}/${SLIME_PLAYER_HIT_LIMIT}`
-            );
-            const enemyIndex = enemies.indexOf(enemy);
-            disposeEnemy(enemy);
-            if (enemyIndex >= 0) {
-              enemies.splice(enemyIndex, 1);
-            }
-            if (playerHitCount >= SLIME_PLAYER_HIT_LIMIT) {
-              lockArena();
-            }
-            continue;
-          }
-          if (distance > 1.1) {
-            const step = Math.min(enemy.moveSpeed * dt, distance - 0.95);
-            enemy.localX += (toPlayerX / distance) * step;
-            enemy.localZ += (toPlayerZ / distance) * step;
-          }
-
-          enemy.localX = Math.max(
-            -SLIME_ARENA_HALF_SIZE + 0.95,
-            Math.min(SLIME_ARENA_HALF_SIZE - 0.95, enemy.localX)
-          );
-          enemy.localZ = Math.max(
-            -SLIME_ARENA_HALF_SIZE + 0.95,
-            Math.min(SLIME_ARENA_HALF_SIZE - 0.95, enemy.localZ)
-          );
-          enemy.groundY = getGroundHeight(enemy.localX, enemy.localZ);
-          enemy.root.position.copyFrom(toWorld(enemy.localX, enemy.groundY, enemy.localZ));
-        }
-
-        const pulse = Math.sin(performance.now() * 0.004 + enemy.phase) * 0.5 + 0.5;
-        const fallStretch =
-          enemy.state === "falling"
-            ? Math.min(0.26, Math.abs(enemy.velocityY) * 0.012)
-            : 0;
-        const scaleY =
-          enemy.baseScale.y *
-          (enemy.state === "falling" ? 1.02 + fallStretch : 0.92 + pulse * 0.16);
-        const scaleX =
-          enemy.baseScale.x *
-          (enemy.state === "falling" ? 1.02 - fallStretch * 0.35 : 1.05 - pulse * 0.05);
-        const scaleZ =
-          enemy.baseScale.z *
-          (enemy.state === "falling" ? 1.02 - fallStretch * 0.32 : 1.04 - pulse * 0.04);
-
-        enemy.body.scaling.set(scaleX, scaleY, scaleZ);
-        enemy.body.position.y = enemy.radius * scaleY;
-        enemy.shell.scaling.set(scaleX * 1.05, scaleY * 0.94, scaleZ * 1.05);
-        enemy.shell.position.y = enemy.body.position.y + enemy.radius * 0.04;
-
-        enemy.shadow.position.copyFrom(
-          toWorld(enemy.localX, enemy.groundY + 0.02, enemy.localZ)
-        );
-        const shadowScale =
-          enemy.state === "falling"
-            ? 0.56 + Math.max(0.18, 1 - (enemy.root.position.y - enemy.groundY) * 0.08)
-            : 0.96 + pulse * 0.08;
-        enemy.shadow.scaling.x = shadowScale;
-        enemy.shadow.scaling.y = shadowScale * 0.92;
-        if (enemy.shadow.material instanceof BABYLON.StandardMaterial) {
-          enemy.shadow.material.alpha =
-            enemy.state === "falling" ? 0.08 + shadowScale * 0.06 : 0.14 + pulse * 0.04;
-        }
-      }
-    },
-  };
+    showCombatPopup,
+    updateStatus,
+  });
 }
 
 function createSlimeWeaponSystem(
@@ -4577,333 +3782,12 @@ function createSlimeWeaponSystem(
   project: ProjectData,
   enemySystem: SlimeEnemySystem
 ): SlimeWeaponSystem {
-  const root = new BABYLON.TransformNode(`${project.id}_weaponRoot`, scene);
-  root.parent = camera;
-
-  const muzzle = new BABYLON.TransformNode(`${project.id}_weaponMuzzle`, scene);
-  muzzle.parent = root;
-  muzzle.position = new BABYLON.Vector3(0.36, 0.02, 1.08);
-
-  const bodyMaterial = createMaterial(
-    scene,
-    `${project.id}_weaponBodyMat`,
-    new BABYLON.Color3(0.18, 0.21, 0.26),
-    new BABYLON.Color3(0.01, 0.014, 0.018)
-  );
-  const coilMaterial = createMaterial(
-    scene,
-    `${project.id}_weaponCoilMat`,
-    new BABYLON.Color3(0.1, 0.32, 0.26),
-    project.color.scale(0.74),
-    0.78
-  );
-  const boltMaterial = createMaterial(
-    scene,
-    `${project.id}_weaponBoltMat`,
-    new BABYLON.Color3(0.38, 0.92, 0.82),
-    new BABYLON.Color3(0.48, 1, 0.9),
-    0.9
-  );
-  const impactMaterial = createMaterial(
-    scene,
-    `${project.id}_weaponImpactMat`,
-    new BABYLON.Color3(0.46, 1, 0.86),
-    new BABYLON.Color3(0.42, 0.94, 0.76),
-    0.72
-  );
-
-  const body = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_weaponBody`,
-    { width: 0.28, height: 0.2, depth: 0.92 },
-    scene
-  );
-  body.parent = root;
-  body.position = new BABYLON.Vector3(0.18, -0.08, 0.38);
-  body.rotation = new BABYLON.Vector3(-0.08, -0.18, 0);
-  body.material = bodyMaterial;
-  body.isPickable = false;
-
-  const barrel = BABYLON.MeshBuilder.CreateCylinder(
-    `${project.id}_weaponBarrel`,
-    { diameter: 0.12, height: 0.76, tessellation: 18 },
-    scene
-  );
-  barrel.parent = root;
-  barrel.position = new BABYLON.Vector3(0.22, -0.05, 0.72);
-  barrel.rotation = new BABYLON.Vector3(Math.PI / 2 - 0.12, -0.18, 0);
-  barrel.material = bodyMaterial;
-  barrel.isPickable = false;
-
-  const grip = BABYLON.MeshBuilder.CreateBox(
-    `${project.id}_weaponGrip`,
-    { width: 0.12, height: 0.34, depth: 0.16 },
-    scene
-  );
-  grip.parent = root;
-  grip.position = new BABYLON.Vector3(0.12, -0.26, 0.22);
-  grip.rotation = new BABYLON.Vector3(0.18, 0, 0.18);
-  grip.material = bodyMaterial;
-  grip.isPickable = false;
-
-  const coil = BABYLON.MeshBuilder.CreateTorus(
-    `${project.id}_weaponCoil`,
-    { diameter: 0.2, thickness: 0.036, tessellation: 26 },
-    scene
-  );
-  coil.parent = root;
-  coil.position = new BABYLON.Vector3(0.26, -0.02, 0.88);
-  coil.rotation = new BABYLON.Vector3(Math.PI / 2, 0.18, 0.12);
-  coil.material = coilMaterial;
-  coil.isPickable = false;
-
-  const coilBand = BABYLON.MeshBuilder.CreateCylinder(
-    `${project.id}_weaponCoilBand`,
-    { diameter: 0.07, height: 0.3, tessellation: 14 },
-    scene
-  );
-  coilBand.parent = root;
-  coilBand.position = new BABYLON.Vector3(0.28, -0.01, 0.94);
-  coilBand.rotation = new BABYLON.Vector3(Math.PI / 2, 0.2, 0);
-  coilBand.material = coilMaterial;
-  coilBand.isPickable = false;
-
-  type WeaponEffect = {
-    meshes: BABYLON.AbstractMesh[];
-    light: BABYLON.PointLight | null;
-    expiresAt: number;
-  };
-
-  const effects: WeaponEffect[] = [];
-  let cooldown = 0;
-  let recoil = 0;
-  let targetingEnemy = false;
-  let firingFeedbackUntil = 0;
-  let hitFeedbackUntil = 0;
-
-  const getAimData = () => {
-    const ray = camera.getForwardRay(SLIME_WEAPON_RANGE);
-    const shotDirection = ray.direction.clone().normalize();
-    const shootOrigin = camera.position.add(shotDirection.scale(0.08));
-    const centerStart = camera.position.add(shotDirection.scale(0.72));
-    return {
-      ray,
-      shotDirection,
-      shootOrigin,
-      centerStart,
-    };
-  };
-
-  const hasEnemyInSight = () => {
-    const { shootOrigin, shotDirection } = getAimData();
-    const sightRay = new BABYLON.Ray(
-      shootOrigin.clone(),
-      shotDirection.clone(),
-      SLIME_WEAPON_RANGE
-    );
-    const enemyPick = scene.pickWithRay(
-      sightRay,
-      (mesh) => mesh.metadata?.assetType === "slimeEnemyBody"
-    );
-    const worldPick = scene.pickWithRay(
-      sightRay,
-      (mesh) => mesh.checkCollisions && mesh.isEnabled()
-    );
-    const enemyDistance = enemyPick?.hit
-      ? enemyPick.distance
-      : Number.POSITIVE_INFINITY;
-    const worldDistance = worldPick?.hit
-      ? worldPick.distance
-      : Number.POSITIVE_INFINITY;
-    return Boolean(enemyPick?.hit && enemyDistance <= worldDistance + 0.02);
-  };
-
-  const buildLightningPath = (start: BABYLON.Vector3, end: BABYLON.Vector3) => {
-    const direction = end.subtract(start);
-    const distance = direction.length();
-    if (distance <= 0.001) {
-      return [start.clone(), end.clone()];
-    }
-
-    const forward = direction.scale(1 / distance);
-    let side = BABYLON.Vector3.Cross(forward, BABYLON.Vector3.Up());
-    if (side.lengthSquared() < 0.0001) {
-      side = BABYLON.Vector3.Cross(forward, BABYLON.Vector3.Right());
-    }
-    side.normalize();
-    const up = BABYLON.Vector3.Cross(side, forward).normalize();
-    const amplitude = Math.min(0.32, distance * 0.035);
-    const path = [start.clone()];
-
-    for (let step = 1; step <= 4; step += 1) {
-      const t = step / 5;
-      const basePoint = BABYLON.Vector3.Lerp(start, end, t);
-      const edgeFade = 1 - Math.abs(t - 0.5) * 1.8;
-      const jitter = side
-        .scale((Math.random() - 0.5) * amplitude * edgeFade * 2)
-        .add(up.scale((Math.random() - 0.5) * amplitude * edgeFade));
-      path.push(basePoint.add(jitter));
-    }
-
-    path.push(end.clone());
-    return path;
-  };
-
-  const spawnLightning = (
-    start: BABYLON.Vector3,
-    end: BABYLON.Vector3,
-    hit: boolean,
-    options?: {
-      radiusScale?: number;
-      showImpact?: boolean;
-      lifetimeMs?: number;
-    }
-  ) => {
-    const radiusScale = options?.radiusScale ?? 1;
-    const bolt = BABYLON.MeshBuilder.CreateTube(
-      `${project.id}_weaponBolt_${performance.now().toFixed(3)}`,
-      {
-        path: buildLightningPath(start, end),
-        radius: (hit ? 0.028 : 0.022) * radiusScale,
-        tessellation: 6,
-        cap: BABYLON.Mesh.NO_CAP,
-      },
-      scene
-    );
-    bolt.material = boltMaterial;
-    bolt.isPickable = false;
-
-    const effectMeshes: BABYLON.AbstractMesh[] = [bolt];
-    let flash: BABYLON.PointLight | null = null;
-
-    if (options?.showImpact !== false) {
-      const impact = BABYLON.MeshBuilder.CreateSphere(
-        `${project.id}_weaponImpact_${performance.now().toFixed(3)}`,
-        { diameter: (hit ? 0.24 : 0.14) * radiusScale, segments: 12 },
-        scene
-      );
-      impact.position = end.clone();
-      impact.isPickable = false;
-      impact.material = impactMaterial;
-      effectMeshes.push(impact);
-
-      flash = new BABYLON.PointLight(
-        `${project.id}_weaponFlash_${performance.now().toFixed(3)}`,
-        end.clone(),
-        scene
-      );
-      flash.diffuse = new BABYLON.Color3(0.46, 1, 0.88);
-      flash.intensity = hit ? 2.2 : 1.3;
-      flash.range = hit ? 4.2 : 2.6;
-    }
-
-    effects.push({
-      meshes: effectMeshes,
-      light: flash,
-      expiresAt:
-        performance.now() + (options?.lifetimeMs ?? SLIME_WEAPON_BOLT_LIFETIME),
-    });
-  };
-
-  const isCombatVisible = () =>
-    enemySystem.isPlayerInsideArena() &&
-    projectPanel.classList.contains("hidden") &&
-    !isOverviewOpen() &&
-    !isLeaderboardOpen();
-
-  const isArmed = () => isCombatVisible() && isPointerLocked;
-
-  root.setEnabled(false);
-
-  return {
-    tryShoot() {
-      if (!isArmed() || cooldown > 0) {
-        return null;
-      }
-
-      cooldown = SLIME_WEAPON_COOLDOWN;
-      recoil = 1;
-      firingFeedbackUntil = performance.now() + 120;
-
-      const muzzleStart = muzzle.getAbsolutePosition();
-      const { shotDirection, shootOrigin, centerStart } = getAimData();
-      const result = enemySystem.shoot(shootOrigin, shotDirection);
-      spawnLightning(centerStart, result.targetPoint, result.hit);
-      spawnLightning(muzzleStart, centerStart, false, {
-        radiusScale: 0.55,
-        showImpact: false,
-        lifetimeMs: 90,
-      });
-      if (result.hit) {
-        hitFeedbackUntil = performance.now() + 220;
-      }
-      return result;
-    },
-    isArmed,
-    getCrosshairState() {
-      const now = performance.now();
-      return {
-        armed: isArmed(),
-        targeting: targetingEnemy,
-        coolingDown: cooldown > 0.035,
-        firing: now < firingFeedbackUntil,
-        hit: now < hitFeedbackUntil,
-      };
-    },
-    update() {
-      const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
-      const enabled = isArmed();
-      root.setEnabled(enabled);
-
-      cooldown = Math.max(0, cooldown - dt);
-      recoil = BABYLON.Scalar.Lerp(recoil, 0, 1 - Math.exp(-18 * dt));
-
-      const now = performance.now();
-      for (let index = effects.length - 1; index >= 0; index -= 1) {
-        const effect = effects[index];
-        if (now < effect.expiresAt) {
-          continue;
-        }
-
-        effect.meshes.forEach((mesh) => mesh.dispose());
-        effect.light?.dispose();
-        effects.splice(index, 1);
-      }
-
-      if (!enabled) {
-        targetingEnemy = false;
-        return;
-      }
-
-      targetingEnemy = hasEnemyInSight();
-
-      const time = performance.now() * 0.001;
-      root.position = new BABYLON.Vector3(
-        0.44 + Math.sin(time * 6.2) * 0.008,
-        -0.42 + Math.sin(time * 12.4) * 0.006 + recoil * 0.06,
-        0.82 - recoil * 0.12
-      );
-      root.rotation = new BABYLON.Vector3(
-        -0.12 - recoil * 0.22,
-        -0.22,
-        -0.08 - recoil * 0.08
-      );
-
-      if (coil.material instanceof BABYLON.StandardMaterial) {
-        coil.material.emissiveColor = project.color.scale(0.56 + recoil * 0.7);
-      }
-      if (coilBand.material instanceof BABYLON.StandardMaterial) {
-        coilBand.material.emissiveColor = project.color.scale(0.44 + recoil * 0.54);
-      }
-    },
-    dispose() {
-      effects.forEach((effect) => {
-        effect.meshes.forEach((mesh) => mesh.dispose());
-        effect.light?.dispose();
-      });
-      effects.length = 0;
-      root.dispose();
-    },
-  };
+  return createSlimeWeaponSystemModule(scene, camera, project, enemySystem, {
+    getIsPointerLocked: () => isPointerLocked,
+    isLeaderboardOpen,
+    isOverviewOpen,
+    projectPanel,
+  });
 }
 
 function createSlimeArenaRockScatter(
@@ -5610,387 +4494,29 @@ function createDrivingSimSystem(
   camera: BABYLON.UniversalCamera,
   playerController: PlayerController
 ): DrivingSimSystem {
-  const { right, back, yaw } = getRoomBasis(project);
-  const zoneHalfWidth = DRIVING_ZONE_WIDTH * 0.5;
-  const zoneHalfDepth = DRIVING_ZONE_DEPTH * 0.5;
-  const roadRects = getDrivingRoadRects();
-  const drivingKeys = new Set([
-    "KeyW",
-    "KeyZ",
-    "KeyS",
-    "KeyA",
-    "KeyQ",
-    "KeyD",
-    "ArrowUp",
-    "ArrowDown",
-    "ArrowLeft",
-    "ArrowRight",
-    "Space",
-  ]);
-  const pressedKeys = new Set<string>();
-  const toWorld = (x: number, y: number, z: number) =>
-    project.position
-      .add(right.scale(x))
-      .add(back.scale(z))
-      .add(new BABYLON.Vector3(0, y, 0));
-  const toLocal = (position: BABYLON.Vector3) => {
-    const offset = position.subtract(project.position);
-    return {
-      x: BABYLON.Vector3.Dot(offset, right),
-      z: BABYLON.Vector3.Dot(offset, back),
-    };
-  };
-  const getForward = (rotationY: number) =>
-    new BABYLON.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
-  const car = createDrivingCar(
-    scene,
-    project,
-    toWorld(0, 0.02, -31.8),
-    yaw + Math.PI
-  );
-  let driving = false;
-  let speed = 0;
-  let steering = 0;
-  let focusedInteraction: DrivingInteractionId | null = null;
-
-  function isInsideZonePoint(position: BABYLON.Vector3) {
-    const local = toLocal(position);
-    return (
-      Math.abs(local.x) <= zoneHalfWidth - 0.35 &&
-      Math.abs(local.z) <= zoneHalfDepth - 0.35
-    );
-  }
-
-  function enterVehicle() {
-    if (driving) {
-      return;
-    }
-
-    driving = true;
-    speed = 0;
-    steering = 0;
-    isDrivingVehicle = true;
-    playerController.resetInput();
-    camera.rotation.z = 0;
-    camera.detachControl();
-    const enterForward = getForward(car.root.rotation.y);
-    const cockpitPosition = car.cockpitAnchor.getAbsolutePosition();
-    camera.position.copyFrom(cockpitPosition);
-    lookAtTarget(
-      camera,
-      cockpitPosition
-        .add(enterForward.scale(7.6))
-        .add(new BABYLON.Vector3(0, 0.04, 0))
-    );
-    camera.fov = WALK_FOV + 0.01;
-    syncCrosshairVisibility();
-    updateStatus(getFreeRoamStatusMessage());
-  }
-
-  function exitVehicle() {
-    if (!driving) {
-      return;
-    }
-
-    driving = false;
-    speed = 0;
-    steering = 0;
-
-    const forward = getForward(car.root.rotation.y);
-    const carRight = new BABYLON.Vector3(forward.z, 0, -forward.x);
-    const exitPosition = car.root.position
-      .subtract(carRight.scale(1.8))
-      .add(new BABYLON.Vector3(0, PLAYER_HEIGHT, 0));
-    playerController.syncPosition(exitPosition);
-    camera.attachControl(canvas, true);
-    camera.fov = WALK_FOV;
-    lookAtTarget(
-      camera,
-      car.root.position.add(forward.scale(6.2)).add(new BABYLON.Vector3(0, 0.9, 0))
-    );
-    isDrivingVehicle = false;
-    syncCrosshairVisibility();
-    updateStatus(getFreeRoamStatusMessage());
-  }
-
-  function isPressed(...codes: string[]) {
-    return codes.some((code) => pressedKeys.has(code));
-  }
-
-  window.addEventListener("keydown", (event) => {
-    if (isEditableTarget(event.target)) {
-      return;
-    }
-
-    if (!drivingKeys.has(event.code)) {
-      return;
-    }
-
-    pressedKeys.add(event.code);
-    event.preventDefault();
+  return createDrivingSimSystemModule(scene, project, camera, playerController, {
+    canvas,
+    drivingHint,
+    drivingHud,
+    drivingMode,
+    drivingSpeed,
+    getCurrentUiText,
+    getFreeRoamStatusMessage,
+    getIsPointerLocked: () => isPointerLocked,
+    isLeaderboardOpen,
+    isOverviewOpen,
+    languageState: {
+      get currentLanguage() {
+        return currentLanguage;
+      },
+    },
+    projectPanel,
+    setIsDrivingVehicle: (value: boolean) => {
+      isDrivingVehicle = value;
+    },
+    syncCrosshairVisibility,
+    updateStatus,
   });
-
-  window.addEventListener("keyup", (event) => {
-    if (isEditableTarget(event.target)) {
-      return;
-    }
-
-    if (!drivingKeys.has(event.code)) {
-      return;
-    }
-
-    pressedKeys.delete(event.code);
-    event.preventDefault();
-  });
-
-  return {
-    interact(allowExit = true) {
-      if (driving) {
-        if (!allowExit) {
-          return false;
-        }
-        exitVehicle();
-        return true;
-      }
-
-      if (
-        !isInsideZonePoint(camera.position) ||
-        focusedInteraction !== "car" ||
-        !isPointerLocked
-      ) {
-        return false;
-      }
-
-      enterVehicle();
-      return true;
-    },
-    isPlayerInsideZone() {
-      return driving || isInsideZonePoint(camera.position);
-    },
-    isDriving() {
-      return driving;
-    },
-    getSpeedKph() {
-      return Math.round(Math.abs(speed) * 3.6);
-    },
-    update() {
-      const dt = Math.min(scene.getEngine().getDeltaTime() / 1000, 0.05);
-      if (dt <= 0) {
-        return;
-      }
-
-      const visible =
-        projectPanel.classList.contains("hidden") &&
-        !isLeaderboardOpen() &&
-        !isOverviewOpen() &&
-        (driving || isInsideZonePoint(camera.position));
-      const canControl = visible && isPointerLocked;
-
-      if (driving) {
-        const throttleInput =
-          canControl
-            ? (isPressed("KeyW", "KeyZ", "ArrowUp") ? 1 : 0) -
-              (isPressed("KeyS", "ArrowDown") ? 1 : 0)
-            : 0;
-        const steeringInput =
-          canControl
-            ? (isPressed("KeyD", "ArrowRight") ? 1 : 0) -
-              (isPressed("KeyA", "KeyQ", "ArrowLeft") ? 1 : 0)
-            : 0;
-        const brakeHeld = canControl && isPressed("Space");
-
-        const speedRatioBefore = BABYLON.Scalar.Clamp(
-          Math.abs(speed) / DRIVING_MAX_FORWARD_SPEED,
-          0,
-          1
-        );
-
-        if (throttleInput > 0) {
-          speed = moveToward(
-            speed,
-            DRIVING_MAX_FORWARD_SPEED,
-            DRIVING_ACCELERATION * (speed < -0.1 ? 2.1 : 1) * dt
-          );
-        } else if (throttleInput < 0) {
-          speed = moveToward(
-            speed,
-            -DRIVING_MAX_REVERSE_SPEED,
-            DRIVING_REVERSE_ACCELERATION * (speed > 0.1 ? 2.35 : 1) * dt
-          );
-        } else {
-          speed = moveToward(
-            speed,
-            0,
-            DRIVING_COAST_DECELERATION * (0.85 + speedRatioBefore * 0.7) * dt
-          );
-        }
-
-        if (brakeHeld) {
-          speed = moveToward(
-            speed,
-            0,
-            DRIVING_BRAKE_DECELERATION * (1.1 + speedRatioBefore * 0.65) * dt
-          );
-        }
-
-        steering = BABYLON.Scalar.Lerp(
-          steering,
-          steeringInput,
-          1 -
-            Math.exp(
-              -(DRIVING_STEER_RESPONSE + (Math.abs(speed) < 0.4 ? 3 : 0)) * dt
-            )
-        );
-
-        const speedRatio = BABYLON.Scalar.Clamp(
-          Math.abs(speed) / DRIVING_MAX_FORWARD_SPEED,
-          0,
-          1
-        );
-        const steerGrip = 1 - speedRatio * 0.48;
-
-        if (speedRatio > 0.005 && Math.abs(steering) > 0.01) {
-          car.root.rotation.y +=
-            steering *
-            DRIVING_TURN_RATE *
-            steerGrip *
-            (0.24 + speedRatio * 1.04) *
-            dt *
-            Math.sign(speed || throttleInput || 1);
-        }
-
-        const forward = getForward(car.root.rotation.y);
-        const proposedPosition = car.root.position.add(forward.scale(speed * dt));
-        const proposedLocal = toLocal(proposedPosition);
-        if (isInsideDrivingRoad(roadRects, proposedLocal.x, proposedLocal.z)) {
-          car.root.position.copyFrom(proposedPosition);
-        } else {
-          speed = moveToward(speed, 0, DRIVING_BRAKE_DECELERATION * 2.2 * dt);
-        }
-
-        car.chassis.rotation.z = BABYLON.Scalar.Lerp(
-          car.chassis.rotation.z,
-          -steering * speedRatio * 0.09,
-          1 - Math.exp(-dt * 7)
-        );
-        car.steeringPivots.forEach((pivot) => {
-          pivot.rotation.y = steering * 0.45;
-        });
-        car.steeringWheel.rotation.y = -steering * 0.7;
-        car.wheels.forEach((wheel) => {
-          wheel.rotation.x += (speed * dt) / 0.36;
-        });
-
-        const cockpitPosition = car.cockpitAnchor.getAbsolutePosition();
-        const carRight = new BABYLON.Vector3(forward.z, 0, -forward.x);
-        camera.position.copyFrom(cockpitPosition);
-        lookAtTarget(
-          camera,
-          cockpitPosition
-            .add(forward.scale(7.6 + speedRatio * 1.4))
-            .add(carRight.scale(steering * 0.42))
-            .add(new BABYLON.Vector3(0, 0.03 + speedRatio * 0.04, 0))
-        );
-        camera.fov = BABYLON.Scalar.Lerp(
-          camera.fov,
-          WALK_FOV + 0.01 + speedRatio * 0.02,
-          1 - Math.exp(-dt * 6)
-        );
-        focusedInteraction = null;
-      } else {
-        car.chassis.rotation.z = BABYLON.Scalar.Lerp(
-          car.chassis.rotation.z,
-          0,
-          1 - Math.exp(-dt * 8)
-        );
-        car.steeringPivots.forEach((pivot) => {
-          pivot.rotation.y = BABYLON.Scalar.Lerp(
-            pivot.rotation.y,
-            0,
-            1 - Math.exp(-dt * 8)
-          );
-        });
-        car.steeringWheel.rotation.y = BABYLON.Scalar.Lerp(
-          car.steeringWheel.rotation.y,
-          0,
-          1 - Math.exp(-dt * 8)
-        );
-        if (visible && isPointerLocked) {
-          const pick = scene.pickWithRay(
-            camera.getForwardRay(DRIVING_INTERACTION_DISTANCE),
-            (mesh) =>
-              Boolean(
-                (mesh.metadata as DrivingInteractableMetadata | undefined)
-                  ?.drivingInteractableId
-              )
-          );
-          focusedInteraction =
-            pick?.hit &&
-            (pick.distance ?? Number.POSITIVE_INFINITY) <=
-              DRIVING_INTERACTION_DISTANCE
-              ? ((pick.pickedMesh?.metadata as DrivingInteractableMetadata | undefined)
-                  ?.drivingInteractableId ?? null)
-              : null;
-        } else {
-          focusedInteraction = null;
-        }
-      }
-
-      if (car.interactionHalo.material instanceof BABYLON.StandardMaterial) {
-        const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.006);
-        car.interactionHalo.material.alpha = driving
-          ? 0
-          : focusedInteraction === "car"
-            ? 0.34 + pulse * 0.07
-            : visible
-              ? 0.12
-              : 0.06;
-        car.interactionHalo.material.emissiveColor = driving
-          ? BABYLON.Color3.Black()
-          : project.color.scale(
-              focusedInteraction === "car" ? 0.52 + pulse * 0.16 : 0.18
-            );
-      }
-      car.interactionHalo.setEnabled(!driving);
-
-      drivingHud.classList.toggle("hidden", !visible);
-      if (visible) {
-        drivingSpeed.textContent = `${Math.round(Math.abs(speed) * 3.6)
-          .toString()
-          .padStart(3, "0")} km/h`;
-        drivingMode.textContent = driving
-          ? currentLanguage === "fr"
-            ? "Au volant"
-            : "Driving"
-          : focusedInteraction === "car"
-            ? currentLanguage === "fr"
-              ? "Vehicule pret"
-              : "Vehicle ready"
-            : getCurrentUiText().drivingModeOnFoot;
-        drivingMode.classList.toggle("active", driving);
-        drivingHint.textContent = driving
-          ? currentLanguage === "fr"
-            ? "ZQSD / WASD pour accelerer et tourner. Space freine, E pour sortir du vehicule."
-            : "ZQSD / WASD to accelerate and steer. Space brakes, E exits the vehicle."
-          : focusedInteraction === "car"
-            ? currentLanguage === "fr"
-              ? "Clique ou appuie sur E pour entrer dans la voiture et lancer un tour."
-              : "Click or press E to enter the car and start a run."
-            : currentLanguage === "fr"
-              ? "Approche-toi de la voiture rouge pour prendre le controle du vehicule."
-              : "Get close to the red car to take control of the vehicle.";
-      } else {
-        drivingMode.classList.remove("active");
-      }
-    },
-  };
-}
-
-function lookAtTarget(camera: BABYLON.UniversalCamera, target: BABYLON.Vector3) {
-  const direction = target.subtract(camera.position);
-  const distanceXZ = Math.sqrt(direction.x * direction.x + direction.z * direction.z);
-  camera.rotation.y = Math.atan2(direction.x, direction.z);
-  camera.rotation.x = -Math.atan2(direction.y, distanceXZ);
 }
 
 function getGroundProbe(scene: BABYLON.Scene, origin: BABYLON.Vector3) {
@@ -6794,6 +5320,7 @@ engine.runRenderLoop(() => {
 window.addEventListener("resize", () => {
   engine.resize();
 });
+
 
 
 

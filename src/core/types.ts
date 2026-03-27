@@ -184,6 +184,10 @@ export type VRCookingSystem = {
   getFailureCount: () => number;
 };
 
+export type ZoneLockBarrierHandle = {
+  setEnabled: (enabled: boolean) => void;
+};
+
 export type DrivingInteractionId = "car";
 
 export type DrivingInteractableMetadata = {

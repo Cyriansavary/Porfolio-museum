@@ -30,16 +30,13 @@ import type {
   VRCookingStation,
   VRCookingStationType,
   VRCookingSystem,
+  ZoneLockBarrierHandle,
 } from "../core/types";
 import {
   createKitchenCounterModule,
   createMaterial,
 } from "../scene/builders";
 import { getRoomBasis } from "../scene/room-basis";
-
-type ZoneLockBarrierHandle = {
-  setEnabled: (enabled: boolean) => void;
-};
 
 export type VRCookingSystemDeps = {
   awardLeaderboardPoints: (category: LeaderboardCategory, delta: number) => void;
