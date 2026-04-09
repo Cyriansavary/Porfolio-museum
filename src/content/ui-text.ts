@@ -16,7 +16,7 @@ export const uiText = {
     combatTitle: "Arc Blaster",
     combatDefault:
       "Clic gauche pour tirer. Les slimes continuent de repop tant que tu restes dans l'arene.",
-    cookingEyebrow: "VR Cooking",
+    cookingEyebrow: "Back To The Kitchen",
     cookingTitle: "Service burgers",
     cookingRushStable: "Cuisine stable",
     cookingComboBase: "Combo x1",
@@ -45,7 +45,7 @@ export const uiText = {
     leaderboardEyebrow: "Leaderboard partage",
     leaderboardTitle: "Scores des joueurs",
     leaderboardBody:
-      "Choisis un nom de joueur pour cumuler les points de Survivor Slime, VR Cooking et DrivingSim et partager le score avec les autres visiteurs.",
+      "Choisis un nom de joueur pour cumuler les points de Survivor Slime, Back To The Kitchen et DrivingSim et partager le score avec les autres visiteurs.",
     closeLeaderboard: "Fermer",
     leaderboardCurrentEyebrow: "Joueur actif",
     leaderboardCurrentEmpty: "Aucun joueur",
@@ -86,7 +86,7 @@ export const uiText = {
     combatTitle: "Arc Blaster",
     combatDefault:
       "Left click to shoot. Slimes keep respawning as long as you stay inside the arena.",
-    cookingEyebrow: "VR Cooking",
+    cookingEyebrow: "Back To The Kitchen",
     cookingTitle: "Burger service",
     cookingRushStable: "Kitchen stable",
     cookingComboBase: "Combo x1",
@@ -115,7 +115,7 @@ export const uiText = {
     leaderboardEyebrow: "Shared leaderboard",
     leaderboardTitle: "Player scores",
     leaderboardBody:
-      "Pick a player name to accumulate Survivor Slime, VR Cooking and DrivingSim points and share the score with other visitors.",
+      "Pick a player name to accumulate Survivor Slime, Back To The Kitchen and DrivingSim points and share the score with other visitors.",
     closeLeaderboard: "Close",
     leaderboardCurrentEyebrow: "Active player",
     leaderboardCurrentEmpty: "No player selected",
