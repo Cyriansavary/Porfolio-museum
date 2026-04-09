@@ -97,26 +97,19 @@ type DrivingRoadEllipse = {
 
 export function getDrivingRoadRects() {
   return [
-    { name: "entrySouth", minX: -5.1, maxX: 5.1, minZ: -38, maxZ: -23.2 },
-    { name: "southApproach", minX: -6.2, maxX: 6.2, minZ: -23.2, maxZ: -12.4 },
-    { name: "westAvenue", minX: -29.6, maxX: -18.2, minZ: -8.4, maxZ: 26.8 },
-    { name: "eastAvenue", minX: 18.2, maxX: 29.6, minZ: -8.4, maxZ: 26.8 },
-    { name: "northBoulevard", minX: -18.6, maxX: 18.6, minZ: 18.0, maxZ: 28.2 },
+    { name: "entrySouth", minX: -5.4, maxX: 5.4, minZ: -38, maxZ: -26.4 },
+    { name: "southBoulevard", minX: -21.4, maxX: 21.4, minZ: -26.4, maxZ: -15.2 },
+    { name: "westAvenue", minX: -21.4, maxX: -10.2, minZ: -15.2, maxZ: 21.4 },
+    { name: "eastAvenue", minX: 10.2, maxX: 21.4, minZ: -15.2, maxZ: 21.4 },
+    { name: "northBoulevard", minX: -21.4, maxX: 21.4, minZ: 10.2, maxZ: 21.4 },
+    { name: "centralSpine", minX: -5.4, maxX: 5.4, minZ: -15.2, maxZ: 10.2 },
+    { name: "midWestStreet", minX: -21.4, maxX: -5.4, minZ: -5.4, maxZ: 5.4 },
+    { name: "midEastStreet", minX: 5.4, maxX: 21.4, minZ: -5.4, maxZ: 5.4 },
   ];
 }
 
-export function getDrivingRoadEllipses() {
-  return [
-    {
-      name: "centralLoop",
-      centerX: 0,
-      centerZ: 2.2,
-      radiusX: 18.6,
-      radiusZ: 10.6,
-      innerRadiusX: 10.8,
-      innerRadiusZ: 4.9,
-    },
-  ] satisfies DrivingRoadEllipse[];
+export function getDrivingRoadEllipses(): DrivingRoadEllipse[] {
+  return [];
 }
 
 type DrivingRaceCheckpoint = {
@@ -127,16 +120,17 @@ type DrivingRaceCheckpoint = {
 type DrivingRaceState = "idle" | "running" | "locked";
 
 const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
-  { x: 0, z: -26.2 },
-  { x: 0, z: -15.2 },
-  { x: 13.2, z: -7.2 },
-  { x: 23.6, z: 2.2 },
-  { x: 23.6, z: 16.2 },
-  { x: 12.8, z: 23.2 },
-  { x: -12.8, z: 23.2 },
-  { x: -23.6, z: 16.2 },
-  { x: -23.6, z: 2.2 },
-  { x: -13.2, z: -7.2 },
+  { x: 0, z: -31.4 },
+  { x: 0, z: -20.4 },
+  { x: 12.6, z: -20.4 },
+  { x: 18.4, z: -9.4 },
+  { x: 18.4, z: 0 },
+  { x: 18.4, z: 14.8 },
+  { x: 0, z: 15.8 },
+  { x: -18.4, z: 14.8 },
+  { x: -18.4, z: 0 },
+  { x: -18.4, z: -9.4 },
+  { x: -12.6, z: -20.4 },
 ];
 
 function isInsideDrivingRoad(
@@ -614,7 +608,9 @@ export function createDrivingSimSystem(
       raceLocked: isFrench ? "Circuit ferme" : "Track closed",
       checkpointLabel: (index: number, total: number) =>
         isFrench ? `Checkpoint ${index}/${total}` : `Checkpoint ${index}/${total}`,
-      nextHint: isFrench ? "10 checkpoints en boucle" : "10 looping checkpoints",
+      nextHint: isFrench
+        ? `${DRIVING_RACE_CHECKPOINTS.length} checkpoints en boucle`
+        : `${DRIVING_RACE_CHECKPOINTS.length} looping checkpoints`,
       readyHint: isFrench
         ? "Clique ou appuie sur E pour entrer dans la voiture et lancer la boucle."
         : "Click or press E to enter the car and launch the loop.",
