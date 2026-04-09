@@ -175,7 +175,17 @@ export function createKitchenCounterModule(
   kick.isPickable = false;
   kick.material = trimMat;
 
-  enableCollisions(body, top, kick);
+  const blocker = BABYLON.MeshBuilder.CreateBox(
+    `${name}_collisionBlocker`,
+    { width: width + 0.12, height: height + 0.28, depth: depth + 0.12 },
+    scene
+  );
+  blocker.parent = root;
+  blocker.position.y = (height + 0.28) * 0.5;
+  blocker.isVisible = false;
+  blocker.isPickable = false;
+
+  enableCollisions(blocker);
   return root;
 }
 
