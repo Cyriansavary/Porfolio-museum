@@ -3819,7 +3819,10 @@ function getGroundProbe(scene: BABYLON.Scene, origin: BABYLON.Vector3) {
   );
   const groundHit = scene.pickWithRay(
     ray,
-    (mesh) => mesh.checkCollisions && mesh.isEnabled()
+    (mesh) =>
+      mesh.checkCollisions &&
+      mesh.isEnabled() &&
+      !((mesh.metadata as { blocksGroundSnap?: boolean } | undefined)?.blocksGroundSnap)
   );
 
   if (!groundHit?.hit) {

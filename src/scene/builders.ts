@@ -184,6 +184,7 @@ export function createKitchenCounterModule(
   blocker.position.y = (height + 0.28) * 0.5;
   blocker.isVisible = false;
   blocker.isPickable = false;
+  blocker.metadata = { blocksGroundSnap: true };
 
   enableCollisions(blocker);
   return root;
