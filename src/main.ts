@@ -2329,45 +2329,52 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   lot.material = createMaterial(
     scene,
     `${project.id}_lotMat`,
-    new BABYLON.Color3(0.14, 0.15, 0.17),
-    new BABYLON.Color3(0.01, 0.01, 0.012)
+    new BABYLON.Color3(0.19, 0.18, 0.17),
+    new BABYLON.Color3(0.012, 0.012, 0.012)
   );
 
   const wallMaterial = createMaterial(
     scene,
     `${project.id}_wallMat`,
-    new BABYLON.Color3(0.12, 0.14, 0.18),
+    new BABYLON.Color3(0.13, 0.15, 0.18),
     project.color.scale(0.04)
-  );
-  const sidewalkMaterial = createMaterial(
-    scene,
-    `${project.id}_sidewalkMat`,
-    new BABYLON.Color3(0.46, 0.44, 0.4),
-    new BABYLON.Color3(0.028, 0.026, 0.02)
   );
   const asphaltMaterial = createMaterial(
     scene,
     `${project.id}_asphaltMat`,
-    new BABYLON.Color3(0.075, 0.08, 0.095),
-    new BABYLON.Color3(0.008, 0.01, 0.014)
+    new BABYLON.Color3(0.07, 0.074, 0.082),
+    new BABYLON.Color3(0.01, 0.011, 0.012)
   );
-  const plazaMaterial = createMaterial(
+  const curbMaterial = createMaterial(
     scene,
-    `${project.id}_plazaMat`,
-    new BABYLON.Color3(0.62, 0.58, 0.5),
-    new BABYLON.Color3(0.04, 0.03, 0.025)
+    `${project.id}_curbMat`,
+    new BABYLON.Color3(0.55, 0.53, 0.5),
+    new BABYLON.Color3(0.028, 0.026, 0.022)
   );
-  const foliageMaterial = createMaterial(
+  const promenadeMaterial = createMaterial(
     scene,
-    `${project.id}_foliageMat`,
-    new BABYLON.Color3(0.22, 0.34, 0.24),
+    `${project.id}_promenadeMat`,
+    new BABYLON.Color3(0.64, 0.61, 0.56),
+    new BABYLON.Color3(0.03, 0.028, 0.022)
+  );
+  const waterMaterial = createMaterial(
+    scene,
+    `${project.id}_waterMat`,
+    new BABYLON.Color3(0.06, 0.16, 0.24),
+    new BABYLON.Color3(0.02, 0.12, 0.2),
+    0.92
+  );
+  const planterMaterial = createMaterial(
+    scene,
+    `${project.id}_planterMat`,
+    new BABYLON.Color3(0.28, 0.3, 0.32),
+    new BABYLON.Color3(0.01, 0.01, 0.012)
+  );
+  const shrubMaterial = createMaterial(
+    scene,
+    `${project.id}_shrubMat`,
+    new BABYLON.Color3(0.22, 0.36, 0.26),
     new BABYLON.Color3(0.02, 0.04, 0.02)
-  );
-  const trunkMaterial = createMaterial(
-    scene,
-    `${project.id}_trunkMat`,
-    new BABYLON.Color3(0.26, 0.19, 0.14),
-    new BABYLON.Color3(0.01, 0.008, 0.006)
   );
 
   const wallSegments = [
@@ -2422,14 +2429,14 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   entryHeader.material = wallMaterial;
   entryHeader.checkCollisions = true;
 
-  const createPad = (
+  const createVisualPad = (
     name: string,
     x: number,
     z: number,
     width: number,
     depth: number,
-    height = 0.16,
-    material = sidewalkMaterial
+    height = 0.14,
+    material = promenadeMaterial
   ) => {
     const pad = BABYLON.MeshBuilder.CreateBox(
       `${project.id}_${name}`,
@@ -2442,14 +2449,14 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     pad.material = material;
     return pad;
   };
-  const createRoundedPad = (
+  const createRoundedVisualPad = (
     name: string,
     x: number,
     z: number,
     width: number,
     depth: number,
-    height = 0.16,
-    material = sidewalkMaterial,
+    height = 0.14,
+    material = promenadeMaterial,
     rotationY = yaw
   ) => {
     const pad = BABYLON.MeshBuilder.CreateCylinder(
@@ -2464,26 +2471,85 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     pad.material = material;
     return pad;
   };
-  const createStreetTree = (name: string, x: number, z: number, scale = 1) => {
-    const trunk = BABYLON.MeshBuilder.CreateCylinder(
-      `${project.id}_${name}_trunk`,
-      { diameter: 0.18 * scale, height: 1.2 * scale, tessellation: 10 },
-      scene
-    );
-    trunk.position = toWorld(x, 0.6 * scale + 0.03, z);
-    trunk.isPickable = false;
-    trunk.material = trunkMaterial;
-
-    const crown = BABYLON.MeshBuilder.CreateSphere(
-      `${project.id}_${name}_crown`,
-      { diameter: 1.05 * scale, segments: 12 },
-      scene
-    );
-    crown.position = toWorld(x, 1.45 * scale + 0.03, z);
-    crown.scaling.y = 0.82;
-    crown.isPickable = false;
-    crown.material = foliageMaterial;
+  const addArcDashes = (
+    prefix: string,
+    centerX: number,
+    centerZ: number,
+    radiusX: number,
+    radiusZ: number,
+    startAngle: number,
+    endAngle: number,
+    count: number
+  ) => {
+    for (let index = 0; index < count; index += 1) {
+      const t = count === 1 ? 0 : index / (count - 1);
+      const angle = BABYLON.Scalar.Lerp(startAngle, endAngle, t);
+      const localX = centerX + Math.cos(angle) * radiusX;
+      const localZ = centerZ + Math.sin(angle) * radiusZ;
+      const tangent = new BABYLON.Vector2(
+        -Math.sin(angle) * radiusX,
+        Math.cos(angle) * radiusZ
+      );
+      createDrivingRoadStripe(
+        scene,
+        `${project.id}_${prefix}_${index}`,
+        toWorld(localX, 0.118, localZ),
+        yaw + Math.atan2(tangent.x, tangent.y),
+        0.18,
+        1.04,
+        new BABYLON.Color3(0.94, 0.92, 0.76),
+        0.92
+      );
+    }
   };
+  const createPlanter = (name: string, x: number, z: number, width: number, depth: number) => {
+    const base = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_${name}_base`,
+      { width, height: 0.34, depth },
+      scene
+    );
+    base.position = toWorld(x, 0.21, z);
+    base.rotation.y = yaw;
+    base.isPickable = false;
+    base.material = planterMaterial;
+
+    const shrub = BABYLON.MeshBuilder.CreateSphere(
+      `${project.id}_${name}_shrub`,
+      { diameter: Math.min(width, depth) * 0.78, segments: 10 },
+      scene
+    );
+    shrub.position = toWorld(x, 0.56, z);
+    shrub.scaling.y = 0.62;
+    shrub.isPickable = false;
+    shrub.material = shrubMaterial;
+  };
+
+  const harborWater = BABYLON.MeshBuilder.CreateBox(
+    `${project.id}_harborWater`,
+    { width: 17.5, height: 0.02, depth: 19.5 },
+    scene
+  );
+  harborWater.position = toWorld(24.6, 0.05, -20.8);
+  harborWater.rotation.y = yaw;
+  harborWater.isPickable = false;
+  harborWater.material = waterMaterial;
+
+  const harborPromenade = createVisualPad(
+    "harborPromenade",
+    24.6,
+    -10.2,
+    17.5,
+    4.4,
+    0.14
+  );
+  harborPromenade.material = promenadeMaterial;
+
+  createVisualPad("northTerrace", 0, 26.8, 32, 5.4, 0.16, promenadeMaterial);
+  createVisualPad("westTerrace", -25.8, 4, 5.8, 24, 0.16, promenadeMaterial);
+  createVisualPad("southPitWalk", -10.6, -31.8, 12.6, 4.2, 0.16, promenadeMaterial);
+  createVisualPad("southHarborWalk", 10.4, -28.6, 10.8, 4.4, 0.16, promenadeMaterial);
+  createRoundedVisualPad("casinoPlaza", 9.8, 23.8, 5.8, 3.6, 0.14, promenadeMaterial, yaw + 0.12);
+  createRoundedVisualPad("hairpinIsland", -10.2, 2.2, 4.6, 3.2, 0.14, curbMaterial, yaw - 0.1);
 
   roadRects.forEach((rect) => {
     const road = BABYLON.MeshBuilder.CreateBox(
@@ -2526,160 +2592,9 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
         ellipse.innerRadiusZ * 2
       );
       innerIsland.isPickable = false;
-      innerIsland.material = plazaMaterial;
+      innerIsland.material = curbMaterial;
     }
   });
-
-  const perimeterPads = [
-    { name: "sidewalkNorth", x: 0, z: zoneDepth * 0.5 - 1.45, width: zoneWidth - 0.8, depth: 2.3 },
-    {
-      name: "sidewalkSouthLeft",
-      x: -(entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth - 0.65) * 0.5),
-      z: -zoneDepth * 0.5 + 1.45,
-      width: zoneWidth * 0.5 - entranceHalfWidth - 0.65,
-      depth: 2.3,
-    },
-    {
-      name: "sidewalkSouthRight",
-      x: entranceHalfWidth + (zoneWidth * 0.5 - entranceHalfWidth - 0.65) * 0.5,
-      z: -zoneDepth * 0.5 + 1.45,
-      width: zoneWidth * 0.5 - entranceHalfWidth - 0.65,
-      depth: 2.3,
-    },
-    { name: "sidewalkWest", x: -zoneWidth * 0.5 + 1.45, z: 0, width: 2.3, depth: zoneDepth - 0.8 },
-    { name: "sidewalkEast", x: zoneWidth * 0.5 - 1.45, z: 0, width: 2.3, depth: zoneDepth - 0.8 },
-  ];
-  perimeterPads.forEach((pad) =>
-    createPad(pad.name, pad.x, pad.z, pad.width, pad.depth)
-  );
-
-  const cityBlocks = [
-    { name: "blockSouthWest", x: -13.4, z: -20.8, width: 10.2, depth: 8.4 },
-    { name: "blockSouthEast", x: 13.4, z: -20.8, width: 10.2, depth: 8.4 },
-    { name: "blockWestMid", x: -13.4, z: 0, width: 10.2, depth: 8.6 },
-    { name: "blockEastMid", x: 13.4, z: 0, width: 10.2, depth: 8.6 },
-    { name: "blockNorthWest", x: -13.4, z: 15.8, width: 10.2, depth: 7.2 },
-    { name: "blockNorthEast", x: 13.4, z: 15.8, width: 10.2, depth: 7.2 },
-    { name: "blockOuterWestSouth", x: -31.4, z: -20.8, width: 6.8, depth: 8.6 },
-    { name: "blockOuterEastSouth", x: 31.4, z: -20.8, width: 6.8, depth: 8.6 },
-    { name: "blockOuterWestNorth", x: -31.4, z: 15.8, width: 6.8, depth: 7.4 },
-    { name: "blockOuterEastNorth", x: 31.4, z: 15.8, width: 6.8, depth: 7.4 },
-    { name: "blockRearWest", x: -13.2, z: 31.6, width: 10.8, depth: 6.2 },
-    { name: "blockRearCenter", x: 0, z: 31.6, width: 11.4, depth: 6.2 },
-    { name: "blockRearEast", x: 13.2, z: 31.6, width: 10.8, depth: 6.2 },
-    { name: "blockRearOuterWest", x: -31.6, z: 31.6, width: 6.2, depth: 6.2 },
-    { name: "blockRearOuterEast", x: 31.6, z: 31.6, width: 6.2, depth: 6.2 },
-  ];
-  cityBlocks.forEach((block) =>
-    createPad(block.name, block.x, block.z, block.width, block.depth, 0.18)
-  );
-
-  for (const corner of [
-    { name: "cornerSouthWestA", x: -8.0, z: -14.8, w: 2.4, d: 2.1 },
-    { name: "cornerSouthEastA", x: 8.0, z: -14.8, w: 2.4, d: 2.1 },
-    { name: "cornerCenterWestA", x: -8.0, z: 8.0, w: 2.6, d: 2.1 },
-    { name: "cornerCenterEastA", x: 8.0, z: 8.0, w: 2.6, d: 2.1 },
-    { name: "cornerNorthWestA", x: -8.0, z: 8.0, w: 2.4, d: 2.1 },
-    { name: "cornerNorthEastA", x: 8.0, z: 8.0, w: 2.4, d: 2.1 },
-    { name: "cornerWestSouthA", x: -8.0, z: -8.0, w: 2.4, d: 2.1 },
-    { name: "cornerEastSouthA", x: 8.0, z: -8.0, w: 2.4, d: 2.1 },
-  ]) {
-    createRoundedPad(corner.name, corner.x, corner.z, corner.w, corner.d);
-  }
-
-  createRoundedPad("piazzaWest", -13.6, 0.4, 3.8, 2.8, 0.14, plazaMaterial, yaw - 0.14);
-  createRoundedPad("piazzaEast", 13.6, -0.2, 4.0, 3.0, 0.14, plazaMaterial, yaw + 0.1);
-  createRoundedPad("piazzaRear", 0, 31.1, 5.6, 3.4, 0.14, plazaMaterial, yaw - 0.08);
-
-  const fountainBase = BABYLON.MeshBuilder.CreateCylinder(
-    `${project.id}_fountainBase`,
-    { diameter: 2.4, height: 0.26, tessellation: 32 },
-    scene
-  );
-  fountainBase.position = toWorld(-13.6, 0.2, 0.4);
-  fountainBase.scaling.z = 0.88;
-  fountainBase.isPickable = false;
-  fountainBase.material = plazaMaterial;
-  fountainBase.checkCollisions = true;
-
-  const fountainColumn = BABYLON.MeshBuilder.CreateCylinder(
-    `${project.id}_fountainColumn`,
-    { diameter: 0.42, height: 1.1, tessellation: 20 },
-    scene
-  );
-  fountainColumn.position = toWorld(-13.6, 0.74, 0.4);
-  fountainColumn.isPickable = false;
-  fountainColumn.material = wallMaterial;
-
-  const fountainTop = BABYLON.MeshBuilder.CreateSphere(
-    `${project.id}_fountainTop`,
-    { diameter: 0.38, segments: 10 },
-    scene
-  );
-  fountainTop.position = toWorld(-13.6, 1.36, 0.4);
-  fountainTop.isPickable = false;
-  fountainTop.material = createMaterial(
-    scene,
-    `${project.id}_fountainTopMat`,
-    new BABYLON.Color3(0.86, 0.88, 0.92),
-    project.color.scale(0.12)
-  );
-
-  createStreetTree("treeWestPiazzaA", -16.2, -2.4, 0.95);
-  createStreetTree("treeWestPiazzaB", -11.4, 2.8, 0.8);
-  createStreetTree("treeEastPiazzaA", 11.4, -2.2, 0.92);
-  createStreetTree("treeEastPiazzaB", 16.2, 2.6, 0.8);
-  createStreetTree("treeNorthWestA", -13.8, 16.2, 0.9);
-  createStreetTree("treeNorthEastA", 13.6, 16.1, 0.85);
-
-  const cafeMetalMaterial = createMaterial(
-    scene,
-    `${project.id}_cafeMetalMat`,
-    new BABYLON.Color3(0.18, 0.18, 0.2),
-    new BABYLON.Color3(0.012, 0.012, 0.014)
-  );
-  const cafeTopMaterial = createMaterial(
-    scene,
-    `${project.id}_cafeTopMat`,
-    new BABYLON.Color3(0.58, 0.42, 0.3),
-    new BABYLON.Color3(0.03, 0.022, 0.016)
-  );
-  for (const table of [
-    { name: "cafeWest", x: -13.8, z: 15.6 },
-    { name: "cafeEast", x: 13.9, z: 15.7 },
-  ]) {
-    const top = BABYLON.MeshBuilder.CreateCylinder(
-      `${project.id}_${table.name}_top`,
-      { diameter: 0.9, height: 0.08, tessellation: 20 },
-      scene
-    );
-    top.position = toWorld(table.x, 0.73, table.z);
-    top.isPickable = false;
-    top.material = cafeTopMaterial;
-
-    const leg = BABYLON.MeshBuilder.CreateCylinder(
-      `${project.id}_${table.name}_leg`,
-      { diameter: 0.12, height: 0.66, tessellation: 12 },
-      scene
-    );
-    leg.position = toWorld(table.x, 0.37, table.z);
-    leg.isPickable = false;
-    leg.material = cafeMetalMaterial;
-
-    for (const seat of [
-      { x: table.x - 0.62, z: table.z + 0.1 },
-      { x: table.x + 0.52, z: table.z - 0.12 },
-    ]) {
-      const stool = BABYLON.MeshBuilder.CreateCylinder(
-        `${project.id}_${table.name}_stool_${seat.x}_${seat.z}`,
-        { diameter: 0.34, height: 0.42, tessellation: 14 },
-        scene
-      );
-      stool.position = toWorld(seat.x, 0.24, seat.z);
-      stool.isPickable = false;
-      stool.material = cafeTopMaterial;
-    }
-  }
 
   const dashColor = new BABYLON.Color3(0.94, 0.92, 0.76);
   const crosswalkColor = new BABYLON.Color3(0.95, 0.95, 0.93);
@@ -2732,19 +2647,19 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     }
   };
 
-  addVerticalDashes("entryDashes", 0, -34.4, -28.4, 2.8, 1.22);
-  addVerticalDashes("centralSpineDashes", 0, -12.8, 8.2, 3.1, 1.08);
-  addVerticalDashes("westDashes", -15.8, -12.2, 18.6, 3.2, 1.1);
-  addVerticalDashes("eastDashes", 15.8, -12.2, 18.6, 3.2, 1.1);
-  addHorizontalDashes("southBoulevardDashes", -20.8, -16.4, 16.4, 3.1, 1.16);
-  addHorizontalDashes("northBoulevardDashes", 15.8, -16.4, 16.4, 3.1, 1.16);
-  addHorizontalDashes("midWestStreetDashes", 0, -16.4, -7.2, 3.1, 1.1);
-  addHorizontalDashes("midEastStreetDashes", 0, 7.2, 16.4, 3.1, 1.1);
+  addVerticalDashes("startStraight", 0, -35.2, -27.4, 3.1, 1.2);
+  addVerticalDashes("beauRivage", 13.8, -10.8, 8.8, 3.2, 1.06);
+  addVerticalDashes("mirabeau", -13.8, 1.2, 15.8, 3.2, 1.04);
+  addHorizontalDashes("casino", 15.8, 3.2, 14.8, 3.2, 1.14);
+  addHorizontalDashes("tunnel", -6.2, -4.8, 2.8, 3.1, 1.08);
+  addHorizontalDashes("quay", -20.2, 1.2, 11.8, 3.1, 1.08);
+  addArcDashes("sainteDevoteArc", 8.8, -15.2, 3.1, 3.1, Math.PI, Math.PI * 1.5, 6);
+  addArcDashes("hairpinArc", -8.8, -1.8, 7.2, 8.6, Math.PI * 0.3, Math.PI * 1.2, 8);
 
   createDrivingRoadStripe(
     scene,
     `${project.id}_startLine`,
-    toWorld(0, 0.124, -31.4),
+    toWorld(0, 0.124, -33.2),
     yaw,
     6.4,
     0.22,
@@ -2755,40 +2670,37 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   for (let index = 0; index < 8; index += 1) {
     createDrivingRoadStripe(
       scene,
-      `${project.id}_crosswalkSouth_${index}`,
-      toWorld(-3.2 + index * 0.9, 0.118, -14.8),
+      `${project.id}_crosswalkHarbor_${index}`,
+      toWorld(10.8 + index * 0.82, 0.118, -12.2),
       yaw,
-      0.52,
-      1.24,
+      0.46,
+      1.1,
       crosswalkColor,
       0.88
     );
     createDrivingRoadStripe(
       scene,
-      `${project.id}_crosswalkNorth_${index}`,
-      toWorld(-3.2 + index * 0.9, 0.118, 9.8),
+      `${project.id}_crosswalkCasino_${index}`,
+      toWorld(-2.8 + index * 0.82, 0.118, 20.8),
       yaw,
       0.52,
-      1.24,
+      1.08,
       crosswalkColor,
       0.88
     );
   }
 
   const buildingData = [
-    { name: "southWestRetail", x: -13.6, z: -20.8, width: 8.8, depth: 5.2, height: 4.6, rotation: yaw - 0.08 },
-    { name: "southEastRetail", x: 13.6, z: -20.8, width: 8.8, depth: 5.2, height: 4.9, rotation: yaw + 0.08 },
-    { name: "westMidCivic", x: -13.6, z: -0.4, width: 7.6, depth: 4.6, height: 5.4, rotation: yaw - 0.06 },
-    { name: "eastMidParking", x: 13.6, z: -0.2, width: 7.6, depth: 4.8, height: 5.2, rotation: yaw + 0.08 },
-    { name: "northWestOffice", x: -13.6, z: 15.8, width: 8.2, depth: 4.6, height: 6.1, rotation: yaw - 0.04 },
-    { name: "northEastOffice", x: 13.6, z: 15.8, width: 8.2, depth: 4.6, height: 5.9, rotation: yaw + 0.06 },
-    { name: "westSouthTower", x: -31.4, z: -20.8, width: 5.8, depth: 4.2, height: 6.4, rotation: yaw + Math.PI / 2 - 0.05 },
-    { name: "westNorthTower", x: -31.4, z: 15.8, width: 5.8, depth: 4.0, height: 6.8, rotation: yaw + Math.PI / 2 + 0.05 },
-    { name: "eastSouthTower", x: 31.4, z: -20.8, width: 5.8, depth: 4.2, height: 6.2, rotation: yaw - Math.PI / 2 + 0.05 },
-    { name: "eastNorthTower", x: 31.4, z: 15.8, width: 5.8, depth: 4.0, height: 6.7, rotation: yaw - Math.PI / 2 - 0.05 },
-    { name: "rearWestBlock", x: -13.2, z: 31.1, width: 8.8, depth: 4.1, height: 5.9, rotation: yaw + Math.PI - 0.05 },
-    { name: "rearCenterStation", x: 0, z: 31.2, width: 8.8, depth: 4.0, height: 4.9, rotation: yaw + Math.PI + 0.03 },
-    { name: "rearEastBlock", x: 13.2, z: 31.2, width: 8.8, depth: 4.1, height: 6.1, rotation: yaw + Math.PI + 0.05 },
+    { name: "pitBuilding", x: -11.8, z: -33.2, width: 10.4, depth: 3.8, height: 4.6, rotation: yaw },
+    { name: "harborBlockA", x: 15.2, z: -26.6, width: 7.6, depth: 4.2, height: 4.8, rotation: yaw + 0.08 },
+    { name: "harborBlockB", x: 21.8, z: -15.4, width: 5.8, depth: 6.2, height: 5.4, rotation: yaw + Math.PI / 2 },
+    { name: "beauRivageHotel", x: 24.8, z: -0.8, width: 6.2, depth: 18.6, height: 7.2, rotation: yaw + Math.PI / 2 },
+    { name: "casinoTerrace", x: 10.2, z: 27.8, width: 10.4, depth: 5.2, height: 5.8, rotation: yaw + Math.PI },
+    { name: "grandHotel", x: -7.6, z: 27.8, width: 16.2, depth: 5.2, height: 6.6, rotation: yaw + Math.PI },
+    { name: "mirabeauResidences", x: -25.2, z: 10.2, width: 6.2, depth: 18.8, height: 6.4, rotation: yaw + Math.PI / 2 },
+    { name: "hairpinResidences", x: -21.8, z: -7.6, width: 5.8, depth: 8.6, height: 5.3, rotation: yaw + Math.PI / 2 - 0.08 },
+    { name: "tunnelBlock", x: 1.6, z: -2.4, width: 5.2, depth: 4.4, height: 3.8, rotation: yaw - 0.06 },
+    { name: "poolBlock", x: 18.8, z: -6.6, width: 4.8, depth: 6.2, height: 4.8, rotation: yaw + Math.PI / 2 },
   ];
 
   buildingData.forEach((building) => {
@@ -2804,19 +2716,36 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     );
   });
 
+  for (const dock of [
+    { name: "dockA", x: 19.2, z: -24.2, width: 1.2, depth: 5.2 },
+    { name: "dockB", x: 24.6, z: -24.4, width: 1.2, depth: 5.8 },
+    { name: "dockC", x: 29.8, z: -24.1, width: 1.2, depth: 5.4 },
+  ]) {
+    const deck = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_${dock.name}`,
+      { width: dock.width, height: 0.12, depth: dock.depth },
+      scene
+    );
+    deck.position = toWorld(dock.x, 0.12, dock.z);
+    deck.rotation.y = yaw;
+    deck.isPickable = false;
+    deck.material = createMaterial(
+      scene,
+      `${project.id}_${dock.name}Mat`,
+      new BABYLON.Color3(0.5, 0.36, 0.22),
+      new BABYLON.Color3(0.02, 0.014, 0.01)
+    );
+  }
+
   const lamps = [
-    { x: -8.8, z: -30.4, rot: yaw },
-    { x: 8.8, z: -30.4, rot: yaw },
-    { x: -8.8, z: -13.2, rot: yaw },
-    { x: 8.8, z: -13.2, rot: yaw },
-    { x: -8.8, z: 9.2, rot: yaw },
-    { x: 8.8, z: 9.2, rot: yaw },
-    { x: -8.8, z: 24.2, rot: yaw },
-    { x: 8.8, z: 24.2, rot: yaw },
-    { x: -24.4, z: -8.8, rot: yaw + Math.PI / 2 },
-    { x: -24.4, z: 8.8, rot: yaw + Math.PI / 2 },
-    { x: 24.4, z: -8.8, rot: yaw - Math.PI / 2 },
-    { x: 24.4, z: 8.8, rot: yaw - Math.PI / 2 },
+    { x: -7.6, z: -35.2, rot: yaw },
+    { x: 7.6, z: -35.2, rot: yaw },
+    { x: 22.4, z: -19.8, rot: yaw - Math.PI / 2 },
+    { x: 22.4, z: -2.4, rot: yaw - Math.PI / 2 },
+    { x: 15.8, z: 22.2, rot: yaw },
+    { x: 0, z: 22.2, rot: yaw },
+    { x: -22.6, z: 12.2, rot: yaw + Math.PI / 2 },
+    { x: -22.6, z: -4.6, rot: yaw + Math.PI / 2 },
   ];
   lamps.forEach((lamp, index) => {
     createDrivingStreetLamp(
@@ -2828,125 +2757,30 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     );
   });
 
-  const planterBaseMaterial = createMaterial(
-    scene,
-    `${project.id}_planterBaseMat`,
-    new BABYLON.Color3(0.22, 0.24, 0.26),
-    new BABYLON.Color3(0.01, 0.01, 0.012)
-  );
-  const planterLeafMaterial = createMaterial(
-    scene,
-    `${project.id}_planterLeafMat`,
-    new BABYLON.Color3(0.18, 0.34, 0.22),
-    new BABYLON.Color3(0.02, 0.04, 0.02)
-  );
-
-  for (const planter of [
-    { x: -8.4, z: -14.7, w: 1.1, d: 1.1 },
-    { x: 8.4, z: -14.7, w: 1.1, d: 1.1 },
-    { x: -8.4, z: 9.6, w: 1.1, d: 1.1 },
-    { x: 8.4, z: 9.6, w: 1.1, d: 1.1 },
-    { x: -24.2, z: 0, w: 1.02, d: 1.02 },
-    { x: 24.2, z: 0, w: 1.02, d: 1.02 },
-  ]) {
-    const base = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_planter_${planter.x}_${planter.z}`,
-      { width: planter.w, height: 0.42, depth: planter.d },
-      scene
-    );
-    base.position = toWorld(planter.x, 0.31, planter.z);
-    base.rotation.y = yaw;
-    base.isPickable = false;
-    base.material = planterBaseMaterial;
-    base.checkCollisions = true;
-
-    const shrub = BABYLON.MeshBuilder.CreateSphere(
-      `${project.id}_planterShrub_${planter.x}_${planter.z}`,
-      { diameter: Math.min(planter.w, planter.d) * 0.72, segments: 10 },
-      scene
-    );
-    shrub.position = toWorld(planter.x, 0.72, planter.z);
-    shrub.scaling.y = 0.7;
-    shrub.isPickable = false;
-    shrub.material = planterLeafMaterial;
-  }
-
-  const shelterFrameMaterial = createMaterial(
-    scene,
-    `${project.id}_shelterFrameMat`,
-    new BABYLON.Color3(0.14, 0.16, 0.18),
-    new BABYLON.Color3(0.01, 0.01, 0.012)
-  );
-  const shelterGlassMaterial = createMaterial(
-    scene,
-    `${project.id}_shelterGlassMat`,
-    new BABYLON.Color3(0.22, 0.28, 0.32),
-    project.color.scale(0.08),
-    0.48
-  );
-
-  for (const shelter of [
-    { name: "westShelter", x: -24.8, z: 0.2, rot: yaw + Math.PI / 2 },
-    { name: "eastShelter", x: 24.8, z: 0.2, rot: yaw - Math.PI / 2 },
-  ]) {
-    const roof = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_${shelter.name}_roof`,
-      { width: 2.2, height: 0.08, depth: 0.92 },
-      scene
-    );
-    roof.position = toWorld(shelter.x, 2.18, shelter.z);
-    roof.rotation.y = shelter.rot;
-    roof.isPickable = false;
-    roof.material = shelterFrameMaterial;
-    roof.checkCollisions = true;
-
-    for (const side of [-1, 1]) {
-      const post = BABYLON.MeshBuilder.CreateBox(
-        `${project.id}_${shelter.name}_post_${side}`,
-        { width: 0.08, height: 2.05, depth: 0.08 },
-        scene
-      );
-      post.position = toWorld(
-        shelter.x + Math.cos(shelter.rot) * 0.68 * side,
-        1.02,
-        shelter.z + Math.sin(shelter.rot) * 0.68 * side
-      );
-      post.rotation.y = shelter.rot;
-      post.isPickable = false;
-      post.material = shelterFrameMaterial;
-      post.checkCollisions = true;
-    }
-
-    const glass = BABYLON.MeshBuilder.CreatePlane(
-      `${project.id}_${shelter.name}_glass`,
-      { width: 1.78, height: 1.35 },
-      scene
-    );
-    glass.position = toWorld(shelter.x, 1.28, shelter.z);
-    glass.rotation.y = shelter.rot;
-    glass.isPickable = false;
-    glass.material = shelterGlassMaterial;
-  }
+  createPlanter("casinoPlanter", 9.8, 23.2, 1.4, 1.4);
+  createPlanter("hotelPlanter", -6.2, 23.4, 1.5, 1.5);
+  createPlanter("hairpinPlanter", -11.4, 3.6, 1.3, 1.3);
+  createPlanter("harborPlanter", 16.6, -11.2, 1.3, 1.3);
 
   const startGateLeft = BABYLON.MeshBuilder.CreateBox(
     `${project.id}_startGateLeft`,
     { width: 0.18, height: 2.6, depth: 0.18 },
     scene
   );
-  startGateLeft.position = toWorld(-3.1, 1.3, -31.6);
+  startGateLeft.position = toWorld(-3.1, 1.3, -33.2);
   startGateLeft.rotation.y = yaw;
   startGateLeft.isPickable = false;
   startGateLeft.material = wallMaterial;
 
   const startGateRight = startGateLeft.clone(`${project.id}_startGateRight`);
-  startGateRight.position = toWorld(3.1, 1.3, -31.6);
+  startGateRight.position = toWorld(3.1, 1.3, -33.2);
 
   const startGateBeam = BABYLON.MeshBuilder.CreateBox(
     `${project.id}_startGateBeam`,
     { width: 6.5, height: 0.18, depth: 0.18 },
     scene
   );
-  startGateBeam.position = toWorld(0, 2.56, -31.6);
+  startGateBeam.position = toWorld(0, 2.56, -33.2);
   startGateBeam.rotation.y = yaw;
   startGateBeam.isPickable = false;
   startGateBeam.material = createMaterial(
@@ -2959,7 +2793,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   createDecorScreen(
     scene,
     `${project.id}_diagScreen`,
-    toWorld(-14.6, 2.35, -29.8),
+    toWorld(-12.2, 2.35, -35.2),
     yaw,
     project.color,
     4.2,
@@ -2968,7 +2802,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
 
   const fillLight = new BABYLON.PointLight(
     `${project.id}_fillLight`,
-    toWorld(0, 5.6, -6.2),
+    toWorld(8, 5.6, -8),
     scene
   );
   fillLight.diffuse = new BABYLON.Color3(0.38, 0.42, 0.48);
@@ -2977,7 +2811,7 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
 
   const cityGlow = new BABYLON.PointLight(
     `${project.id}_cityGlow`,
-    toWorld(0, 7.2, 12),
+    toWorld(8, 7.2, 18),
     scene
   );
   cityGlow.diffuse = project.color.scale(0.85).add(new BABYLON.Color3(0.12, 0.12, 0.12));

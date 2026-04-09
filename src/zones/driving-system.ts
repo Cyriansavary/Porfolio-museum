@@ -97,19 +97,37 @@ type DrivingRoadEllipse = {
 
 export function getDrivingRoadRects() {
   return [
-    { name: "entrySouth", minX: -5.4, maxX: 5.4, minZ: -38, maxZ: -26.4 },
-    { name: "southBoulevard", minX: -21.4, maxX: 21.4, minZ: -26.4, maxZ: -15.2 },
-    { name: "westAvenue", minX: -21.4, maxX: -10.2, minZ: -15.2, maxZ: 21.4 },
-    { name: "eastAvenue", minX: 10.2, maxX: 21.4, minZ: -15.2, maxZ: 21.4 },
-    { name: "northBoulevard", minX: -21.4, maxX: 21.4, minZ: 10.2, maxZ: 21.4 },
-    { name: "centralSpine", minX: -5.4, maxX: 5.4, minZ: -15.2, maxZ: 10.2 },
-    { name: "midWestStreet", minX: -21.4, maxX: -5.4, minZ: -5.4, maxZ: 5.4 },
-    { name: "midEastStreet", minX: 5.4, maxX: 21.4, minZ: -5.4, maxZ: 5.4 },
+    { name: "startFinish", minX: -4.8, maxX: 4.8, minZ: -38, maxZ: -24.8 },
+    { name: "harborStraight", minX: -4.8, maxX: 8.8, minZ: -24.8, maxZ: -15.2 },
+    { name: "beauRivageClimb", minX: 8.8, maxX: 18.8, minZ: -15.2, maxZ: 11.8 },
+    { name: "casinoSweep", minX: 0.8, maxX: 18.8, minZ: 11.8, maxZ: 19.8 },
+    { name: "mirabeauDrop", minX: -18.4, maxX: 0.8, minZ: 9.2, maxZ: 19.8 },
+    { name: "hairpinLane", minX: -18.4, maxX: -8.8, minZ: -1.8, maxZ: 9.2 },
+    { name: "tunnelRun", minX: -8.8, maxX: 7.4, minZ: -10.2, maxZ: -1.8 },
+    { name: "poolSection", minX: 7.4, maxX: 16.8, minZ: -15.2, maxZ: -10.2 },
+    { name: "quayReturn", minX: -1.8, maxX: 16.8, minZ: -24.8, maxZ: -15.2 },
   ];
 }
 
 export function getDrivingRoadEllipses(): DrivingRoadEllipse[] {
-  return [];
+  return [
+    {
+      name: "sainteDevote",
+      centerX: 8.8,
+      centerZ: -15.2,
+      radiusX: 4.4,
+      radiusZ: 4.4,
+    },
+    {
+      name: "stationHairpin",
+      centerX: -8.8,
+      centerZ: -1.8,
+      radiusX: 9.6,
+      radiusZ: 11,
+      innerRadiusX: 4.6,
+      innerRadiusZ: 5.6,
+    },
+  ];
 }
 
 type DrivingRaceCheckpoint = {
@@ -120,17 +138,22 @@ type DrivingRaceCheckpoint = {
 type DrivingRaceState = "idle" | "running" | "locked";
 
 const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
-  { x: 0, z: -31.4 },
-  { x: 0, z: -20.4 },
-  { x: 12.6, z: -20.4 },
-  { x: 18.4, z: -9.4 },
-  { x: 18.4, z: 0 },
-  { x: 18.4, z: 14.8 },
-  { x: 0, z: 15.8 },
-  { x: -18.4, z: 14.8 },
-  { x: -18.4, z: 0 },
-  { x: -18.4, z: -9.4 },
-  { x: -12.6, z: -20.4 },
+  { x: 0, z: -33.2 },
+  { x: 0, z: -25.8 },
+  { x: 5.8, z: -20.6 },
+  { x: 13.6, z: -14.2 },
+  { x: 15.8, z: -4.4 },
+  { x: 15.8, z: 7.6 },
+  { x: 11.8, z: 15.2 },
+  { x: 2.6, z: 16.2 },
+  { x: -9.8, z: 15.4 },
+  { x: -14.6, z: 8.2 },
+  { x: -14.6, z: -0.8 },
+  { x: -9.2, z: -7.2 },
+  { x: 1.8, z: -7.8 },
+  { x: 10.4, z: -12.2 },
+  { x: 11.6, z: -19.8 },
+  { x: 4.2, z: -21.2 },
 ];
 
 function isInsideDrivingRoad(
