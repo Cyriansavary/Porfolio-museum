@@ -2220,7 +2220,17 @@ function createDrivingBuilding(
     accentColor.scale(0.08)
   );
 
-  enableCollisions(shell, plinth, roof, awning);
+  const blocker = BABYLON.MeshBuilder.CreateBox(
+    `${name}_blocker`,
+    { width: width + 0.12, height: height + 0.18, depth: depth + 0.12 },
+    scene
+  );
+  blocker.parent = root;
+  blocker.position.y = (height + 0.18) * 0.5;
+  blocker.isVisible = false;
+  blocker.isPickable = false;
+
+  enableCollisions(blocker);
   return root;
 }
 
@@ -2430,7 +2440,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     pad.rotation.y = yaw;
     pad.isPickable = false;
     pad.material = material;
-    pad.checkCollisions = true;
     return pad;
   };
   const createRoundedPad = (
@@ -2453,7 +2462,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     pad.scaling = new BABYLON.Vector3(width, 1, depth);
     pad.isPickable = false;
     pad.material = material;
-    pad.checkCollisions = true;
     return pad;
   };
   const createStreetTree = (name: string, x: number, z: number, scale = 1) => {
@@ -2491,7 +2499,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     road.rotation.y = yaw;
     road.isPickable = false;
     road.material = asphaltMaterial;
-    road.checkCollisions = true;
   });
   roadEllipses.forEach((ellipse) => {
     const outerLoop = BABYLON.MeshBuilder.CreateCylinder(
@@ -2504,7 +2511,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     outerLoop.scaling = new BABYLON.Vector3(ellipse.radiusX * 2, 1, ellipse.radiusZ * 2);
     outerLoop.isPickable = false;
     outerLoop.material = asphaltMaterial;
-    outerLoop.checkCollisions = true;
 
     if (ellipse.innerRadiusX && ellipse.innerRadiusZ) {
       const innerIsland = BABYLON.MeshBuilder.CreateCylinder(
@@ -2521,7 +2527,6 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
       );
       innerIsland.isPickable = false;
       innerIsland.material = plazaMaterial;
-      innerIsland.checkCollisions = true;
     }
   });
 
