@@ -79,8 +79,8 @@ import { getRoomBasis } from "./scene/room-basis";
 import { createZoneLockBarrier as createZoneLockBarrierModule } from "./scene/zone-lock-barrier";
 import {
   createDrivingSimSystem as createDrivingSimSystemModule,
-  getDrivingRoadEllipses,
-  getDrivingRoadRects,
+  getDrivingTrackHalfWidth,
+  getDrivingTrackNodes,
 } from "./zones/driving-system";
 import {
   createSlimeEnemySystem as createSlimeEnemySystemModule,
@@ -2309,8 +2309,8 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   const wallHeight = 5.35;
   const wallThickness = 0.45;
   const entranceHalfWidth = 5.4;
-  const roadRects = getDrivingRoadRects();
-  const roadEllipses = getDrivingRoadEllipses();
+  const trackNodes = getDrivingTrackNodes();
+  const trackHalfWidth = getDrivingTrackHalfWidth();
   const toWorld = (x: number, y: number, z: number) =>
     project.position
       .add(right.scale(x))
@@ -2523,6 +2523,29 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
     shrub.isPickable = false;
     shrub.material = shrubMaterial;
   };
+  const createTrackSegment = (
+    name: string,
+    start: { x: number; z: number },
+    end: { x: number; z: number },
+    width: number
+  ) => {
+    const dx = end.x - start.x;
+    const dz = end.z - start.z;
+    const length = Math.hypot(dx, dz);
+    if (length <= 0.001) {
+      return;
+    }
+
+    const road = BABYLON.MeshBuilder.CreateBox(
+      `${project.id}_${name}`,
+      { width, height: 0.03, depth: length },
+      scene
+    );
+    road.position = toWorld((start.x + end.x) * 0.5, 0.095, (start.z + end.z) * 0.5);
+    road.rotation.y = yaw + Math.atan2(dx, dz);
+    road.isPickable = false;
+    road.material = asphaltMaterial;
+  };
 
   const harborWater = BABYLON.MeshBuilder.CreateBox(
     `${project.id}_harborWater`,
@@ -2551,50 +2574,14 @@ function createDrivingSimZone(scene: BABYLON.Scene, project: ProjectData) {
   createRoundedVisualPad("casinoPlaza", 9.8, 23.8, 5.8, 3.6, 0.14, promenadeMaterial, yaw + 0.12);
   createRoundedVisualPad("hairpinIsland", -10.2, 2.2, 4.6, 3.2, 0.14, curbMaterial, yaw - 0.1);
 
-  roadRects.forEach((rect) => {
-    const road = BABYLON.MeshBuilder.CreateBox(
-      `${project.id}_road_${rect.name}`,
-      { width: rect.maxX - rect.minX, height: 0.03, depth: rect.maxZ - rect.minZ },
-      scene
+  for (let index = 0; index < trackNodes.length - 1; index += 1) {
+    createTrackSegment(
+      `trackSegment_${index}`,
+      trackNodes[index],
+      trackNodes[index + 1],
+      trackHalfWidth * 2
     );
-    road.position = toWorld(
-      (rect.minX + rect.maxX) * 0.5,
-      0.095,
-      (rect.minZ + rect.maxZ) * 0.5
-    );
-    road.rotation.y = yaw;
-    road.isPickable = false;
-    road.material = asphaltMaterial;
-  });
-  roadEllipses.forEach((ellipse) => {
-    const outerLoop = BABYLON.MeshBuilder.CreateCylinder(
-      `${project.id}_road_${ellipse.name}_outer`,
-      { diameter: 1, height: 0.03, tessellation: 64 },
-      scene
-    );
-    outerLoop.position = toWorld(ellipse.centerX, 0.095, ellipse.centerZ);
-    outerLoop.rotation.y = yaw;
-    outerLoop.scaling = new BABYLON.Vector3(ellipse.radiusX * 2, 1, ellipse.radiusZ * 2);
-    outerLoop.isPickable = false;
-    outerLoop.material = asphaltMaterial;
-
-    if (ellipse.innerRadiusX && ellipse.innerRadiusZ) {
-      const innerIsland = BABYLON.MeshBuilder.CreateCylinder(
-        `${project.id}_road_${ellipse.name}_inner`,
-        { diameter: 1, height: 0.14, tessellation: 56 },
-        scene
-      );
-      innerIsland.position = toWorld(ellipse.centerX, 0.11, ellipse.centerZ);
-      innerIsland.rotation.y = yaw;
-      innerIsland.scaling = new BABYLON.Vector3(
-        ellipse.innerRadiusX * 2,
-        1,
-        ellipse.innerRadiusZ * 2
-      );
-      innerIsland.isPickable = false;
-      innerIsland.material = curbMaterial;
-    }
-  });
+  }
 
   const dashColor = new BABYLON.Color3(0.94, 0.92, 0.76);
   const crosswalkColor = new BABYLON.Color3(0.95, 0.95, 0.93);

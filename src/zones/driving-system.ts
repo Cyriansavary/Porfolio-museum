@@ -77,56 +77,51 @@ export type DrivingSimSystemDeps = {
   updateStatus: (message: string) => void;
 };
 
-type DrivingRoadRect = {
-  name: string;
-  minX: number;
-  maxX: number;
-  minZ: number;
-  maxZ: number;
+export type DrivingTrackNode = {
+  x: number;
+  z: number;
 };
 
-type DrivingRoadEllipse = {
-  name: string;
-  centerX: number;
-  centerZ: number;
-  radiusX: number;
-  radiusZ: number;
-  innerRadiusX?: number;
-  innerRadiusZ?: number;
-};
+const DRIVING_TRACK_HALF_WIDTH = 3.3;
 
-export function getDrivingRoadRects() {
-  return [
-    { name: "startFinish", minX: -4.8, maxX: 4.8, minZ: -38, maxZ: -24.8 },
-    { name: "harborStraight", minX: -4.8, maxX: 8.8, minZ: -24.8, maxZ: -15.2 },
-    { name: "beauRivageClimb", minX: 8.8, maxX: 18.8, minZ: -15.2, maxZ: 11.8 },
-    { name: "casinoSweep", minX: 0.8, maxX: 18.8, minZ: 11.8, maxZ: 19.8 },
-    { name: "mirabeauDrop", minX: -18.4, maxX: 0.8, minZ: 9.2, maxZ: 19.8 },
-    { name: "hairpinLane", minX: -18.4, maxX: -8.8, minZ: -1.8, maxZ: 9.2 },
-    { name: "tunnelRun", minX: -8.8, maxX: 7.4, minZ: -10.2, maxZ: -1.8 },
-    { name: "poolSection", minX: 7.4, maxX: 16.8, minZ: -15.2, maxZ: -10.2 },
-    { name: "quayReturn", minX: -1.8, maxX: 16.8, minZ: -24.8, maxZ: -15.2 },
-  ];
+export function getDrivingTrackHalfWidth() {
+  return DRIVING_TRACK_HALF_WIDTH;
 }
 
-export function getDrivingRoadEllipses(): DrivingRoadEllipse[] {
+export function getDrivingTrackNodes(): DrivingTrackNode[] {
   return [
-    {
-      name: "sainteDevote",
-      centerX: 8.8,
-      centerZ: -15.2,
-      radiusX: 4.4,
-      radiusZ: 4.4,
-    },
-    {
-      name: "stationHairpin",
-      centerX: -8.8,
-      centerZ: -1.8,
-      radiusX: 9.6,
-      radiusZ: 11,
-      innerRadiusX: 4.6,
-      innerRadiusZ: 5.6,
-    },
+    { x: -24, z: -8 },
+    { x: -24, z: -18 },
+    { x: -22, z: -28 },
+    { x: -18, z: -36 },
+    { x: -9, z: -38 },
+    { x: -4, z: -34 },
+    { x: -7, z: -28 },
+    { x: -8, z: -20 },
+    { x: -7, z: -14 },
+    { x: 2, z: -14 },
+    { x: 8, z: -13.5 },
+    { x: 8.8, z: -12.2 },
+    { x: 16, z: -10.5 },
+    { x: 24, z: -6 },
+    { x: 28, z: 2 },
+    { x: 29, z: 14 },
+    { x: 26, z: 21 },
+    { x: 22, z: 19 },
+    { x: 23, z: 15 },
+    { x: 26, z: 14 },
+    { x: 24, z: 9 },
+    { x: 18.5, z: 8 },
+    { x: 16, z: 15 },
+    { x: 20, z: 23 },
+    { x: 16, z: 30 },
+    { x: 9, z: 22 },
+    { x: 6, z: 12 },
+    { x: 8, z: 5 },
+    { x: 4, z: -1 },
+    { x: -4, z: -6 },
+    { x: -12, z: -8 },
+    { x: -20, z: -8 },
   ];
 }
 
@@ -138,65 +133,66 @@ type DrivingRaceCheckpoint = {
 type DrivingRaceState = "idle" | "running" | "locked";
 
 const DRIVING_RACE_CHECKPOINTS: DrivingRaceCheckpoint[] = [
-  { x: 0, z: -33.2 },
-  { x: 0, z: -25.8 },
-  { x: 5.8, z: -20.6 },
-  { x: 13.6, z: -14.2 },
-  { x: 15.8, z: -4.4 },
-  { x: 15.8, z: 7.6 },
-  { x: 11.8, z: 15.2 },
-  { x: 2.6, z: 16.2 },
-  { x: -9.8, z: 15.4 },
-  { x: -14.6, z: 8.2 },
-  { x: -14.6, z: -0.8 },
-  { x: -9.2, z: -7.2 },
-  { x: 1.8, z: -7.8 },
-  { x: 10.4, z: -12.2 },
-  { x: 11.6, z: -19.8 },
-  { x: 4.2, z: -21.2 },
+  { x: -24, z: -12 },
+  { x: -22.8, z: -24 },
+  { x: -16, z: -36.2 },
+  { x: -6.5, z: -36 },
+  { x: -7.8, z: -23.2 },
+  { x: -3, z: -14 },
+  { x: 7.8, z: -13.2 },
+  { x: 19, z: -9 },
+  { x: 27.5, z: 1 },
+  { x: 28.2, z: 15.4 },
+  { x: 23.6, z: 14.2 },
+  { x: 18.6, z: 11.2 },
+  { x: 18.6, z: 24.4 },
+  { x: 10.5, z: 24.6 },
+  { x: 6.5, z: 8.6 },
+  { x: -2.8, z: -5.2 },
 ];
 
+function getDistanceToTrackSegment(
+  x: number,
+  z: number,
+  start: DrivingTrackNode,
+  end: DrivingTrackNode
+) {
+  const dx = end.x - start.x;
+  const dz = end.z - start.z;
+  const lengthSquared = dx * dx + dz * dz;
+  if (lengthSquared <= 0.0001) {
+    return Math.hypot(x - start.x, z - start.z);
+  }
+
+  const t = BABYLON.Scalar.Clamp(
+    ((x - start.x) * dx + (z - start.z) * dz) / lengthSquared,
+    0,
+    1
+  );
+  const closestX = start.x + dx * t;
+  const closestZ = start.z + dz * t;
+  return Math.hypot(x - closestX, z - closestZ);
+}
+
 function isInsideDrivingRoad(
-  roadRects: DrivingRoadRect[],
-  roadEllipses: DrivingRoadEllipse[],
+  trackNodes: DrivingTrackNode[],
+  trackHalfWidth: number,
   x: number,
   z: number
 ) {
-  const insideRect = roadRects.some(
-    (rect) =>
-      x >= rect.minX - DRIVING_ZONE_NAV_MARGIN &&
-      x <= rect.maxX + DRIVING_ZONE_NAV_MARGIN &&
-      z >= rect.minZ - DRIVING_ZONE_NAV_MARGIN &&
-      z <= rect.maxZ + DRIVING_ZONE_NAV_MARGIN
-  );
-
-  if (insideRect) {
-    return true;
-  }
-
-  return roadEllipses.some((ellipse) => {
-    const dx = x - ellipse.centerX;
-    const dz = z - ellipse.centerZ;
-    const outerX = ellipse.radiusX + DRIVING_ZONE_NAV_MARGIN;
-    const outerZ = ellipse.radiusZ + DRIVING_ZONE_NAV_MARGIN;
-    const insideOuter =
-      (dx * dx) / (outerX * outerX) + (dz * dz) / (outerZ * outerZ) <= 1;
-
-    if (!insideOuter) {
-      return false;
-    }
-
-    if (!ellipse.innerRadiusX || !ellipse.innerRadiusZ) {
+  for (let index = 0; index < trackNodes.length - 1; index += 1) {
+    const distance = getDistanceToTrackSegment(
+      x,
+      z,
+      trackNodes[index],
+      trackNodes[index + 1]
+    );
+    if (distance <= trackHalfWidth + DRIVING_ZONE_NAV_MARGIN) {
       return true;
     }
+  }
 
-    const innerX = Math.max(0.1, ellipse.innerRadiusX - DRIVING_ZONE_NAV_MARGIN);
-    const innerZ = Math.max(0.1, ellipse.innerRadiusZ - DRIVING_ZONE_NAV_MARGIN);
-    const insideInner =
-      (dx * dx) / (innerX * innerX) + (dz * dz) / (innerZ * innerZ) <= 1;
-
-    return !insideInner;
-  });
+  return false;
 }
 
 export function createDrivingCar(
@@ -482,8 +478,8 @@ export function createDrivingSimSystem(
   const { right, back, yaw } = getRoomBasis(project);
   const zoneHalfWidth = DRIVING_ZONE_WIDTH * 0.5;
   const zoneHalfDepth = DRIVING_ZONE_DEPTH * 0.5;
-  const roadRects = getDrivingRoadRects();
-  const roadEllipses = getDrivingRoadEllipses();
+  const trackNodes = getDrivingTrackNodes();
+  const trackHalfWidth = getDrivingTrackHalfWidth();
   const drivingKeys = new Set([
     "KeyW",
     "KeyZ",
@@ -512,11 +508,15 @@ export function createDrivingSimSystem(
   };
   const getForward = (rotationY: number) =>
     new BABYLON.Vector3(Math.sin(rotationY), 0, Math.cos(rotationY));
+  const startNode = trackNodes[0];
+  const nextStartNode = trackNodes[1];
+  const startRotation =
+    yaw + Math.atan2(nextStartNode.x - startNode.x, nextStartNode.z - startNode.z);
   const car = createDrivingCar(
     scene,
     project,
-    toWorld(0, 0.02, -31.8),
-    yaw + Math.PI
+    toWorld(startNode.x, 0.02, startNode.z),
+    startRotation
   );
   const entranceBarrier = createZoneLockBarrier(
     scene,
@@ -989,7 +989,7 @@ export function createDrivingSimSystem(
         const forward = getForward(car.root.rotation.y);
         const proposedPosition = car.root.position.add(forward.scale(speed * dt));
         const proposedLocal = toLocal(proposedPosition);
-        if (isInsideDrivingRoad(roadRects, roadEllipses, proposedLocal.x, proposedLocal.z)) {
+        if (isInsideDrivingRoad(trackNodes, trackHalfWidth, proposedLocal.x, proposedLocal.z)) {
           car.root.position.copyFrom(proposedPosition);
         } else {
           speed = moveToward(speed, 0, DRIVING_BRAKE_DECELERATION * 2.2 * dt);
